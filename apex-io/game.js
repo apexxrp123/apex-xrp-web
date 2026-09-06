@@ -2625,6 +2625,13 @@
   renderRank();
   renderChat();
   renderWallets();
+  fetch("https://apex-xrp-server-production.up.railway.app/")
+    .then((r) => r.text())
+    .then((t) => {
+      const el = document.getElementById("wallet-status");
+      if (el && /ok/i.test(t)) el.textContent = "Den server linked (no XRP yet).";
+    })
+    .catch(() => {});
   refreshPrice();
   refreshNews();
   setInterval(refreshNews, 180000);
