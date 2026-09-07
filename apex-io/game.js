@@ -1232,9 +1232,10 @@
       trail.forEach((pt, i) => {
         const hx = pt.x - cam.x + canvas.width / 2;
         const hy = pt.y - cam.y + canvas.height / 2;
-        ctx.fillStyle = "#e7c56a";
+        const last = i === trail.length - 1;
+        ctx.fillStyle = last ? "#ffe9a8" : "#e7c56a";
         ctx.beginPath();
-        ctx.arc(hx, hy, 3 + i * 0.25, 0, Math.PI * 2);
+        ctx.arc(hx, hy, last ? 11 : 7, 0, Math.PI * 2);
         ctx.fill();
       });
       const hx = r.x - cam.x + canvas.width / 2;
