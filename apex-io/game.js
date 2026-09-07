@@ -933,7 +933,7 @@
           })),
           peers: Object.keys(window.apexPeers || {}).map((nm) => {
             const r = window.apexPeers[nm];
-            return { name: nm, pts: (r.trail || [{ x: r.x, y: r.y }]).map((p) => ({ x: p.x, y: p.y })) };
+            return { name: nm, pts: (r.trail || [{ x: r.x, y: r.y }]).map((p) => ({ x: p.x, y: p.y })), skin: r.skin || null };
           }),
         });
         if (w.tape.length > 300) w.tape.shift();
