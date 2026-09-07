@@ -589,8 +589,8 @@
       id: "you",
       name: state.playerName,
       isPlayer: true,
-      x: map / 2,
-      y: map / 2,
+      x: map / 2 + (state.playerName.charCodeAt(0) % 7 - 3) * 80,
+      y: map / 2 + (state.playerName.charCodeAt(1) % 7 - 3) * 80,
       len: 18,
       a: state.skin.a,
       b: state.skin.b,
@@ -2207,9 +2207,11 @@
       toast("You're already in the pit.");
       return;
     }
-            fetch("https://apex-xrp-server-production.up.railway.app/room/jungle?name=" + encodeURIComponent(state.playerName))
-      .then((r) => r.json())
-      .then((j) => {
+        .then((j) => {
+        if (j && j.full) {
+          toast("Den is full. Eight hunters max.");
+          return;
+        }
         toast("Jungle: " + ((j && j.who) ? j.who.join(", ") : state.playerName));
         startMatch();
       })
