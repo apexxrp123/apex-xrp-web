@@ -2110,10 +2110,10 @@
       toast("You're already in the pit.");
       return;
     }
-        fetch("https://apex-xrp-server-production.up.railway.app/den")
+            fetch("https://apex-xrp-server-production.up.railway.app/room/jungle?name=" + encodeURIComponent(state.playerName))
       .then((r) => r.json())
       .then((j) => {
-        toast(j && j.match ? "Match " + j.match : "Den server awake");
+        toast("Jungle: " + ((j && j.who) ? j.who.join(", ") : state.playerName));
         startMatch();
       })
       .catch(() => {
