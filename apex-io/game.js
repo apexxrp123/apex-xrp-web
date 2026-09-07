@@ -2758,8 +2758,6 @@
           if (m.by && m.by === state.playerName) toast("Fanged " + m.name);
           else toast(m.name + " dropped");
         }
-        if (m && m.t === "shed" && state.world && Array.isArray(m.drops)) {
-          m.drops.forEach((d) => {
             state.world.dropped.push({
               x: Number(d.x) || 0,
               y: Number(d.y) || 0,
