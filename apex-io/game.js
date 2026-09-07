@@ -2667,10 +2667,11 @@
           const el = document.getElementById("wallet-status");
           if (el) el.textContent = "Den server linked · socket live";
         }
-                if (m && m.t === "peers" && m.who) {
+        if (m && m.t === "peers" && m.who) {
           pushChat("den", "Sockets: " + m.who.join(", "), true);
           renderChat();
-             } catch (_) {}
+        }
+      } catch (_) {}
     };
     setInterval(() => {
       if (!window.apexSock || window.apexSock.readyState !== 1) return;
