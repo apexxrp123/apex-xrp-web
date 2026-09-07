@@ -2746,9 +2746,10 @@
           const el = document.getElementById("wallet-status");
           if (el) el.textContent = "Den server linked · socket live";
         }
-        if (m && m.t === "dead" && m.name && window.apexPeers) {
-          delete window.apexPeers[m.name];
-          toast(m.name + " dropped");
+        if (m && m.t === "dead" && m.name) {
+          if (window.apexPeers) delete window.apexPeers[m.name];
+          if (m.by && m.by === state.playerName) toast("Fanged " + m.name);
+          else toast(m.name + " dropped");
         }
           if (m && m.t === "pos" && m.name && m.name !== state.playerName) {
           window.apexPeers = window.apexPeers || {};
