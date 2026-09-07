@@ -1295,23 +1295,23 @@
     if (state.mode === "killcam" && w.kcPeers) {
       w.kcPeers.forEach((peer) => {
         const trail = peer.pts || [];
-        if (!trail.length) return;
-        ctx.strokeStyle = "#e7c56a";
-        ctx.lineWidth = 16;
-        ctx.lineCap = "round";
-        ctx.lineJoin = "round";
-        ctx.beginPath();
-        trail.forEach((pt, i) => {
-          const hx = pt.x - cam.x + canvas.width / 2;
-          const hy = pt.y - cam.y + canvas.height / 2;
-          if (i === 0) ctx.moveTo(hx, hy);
-          else ctx.lineTo(hx, hy);
-        });
-        ctx.stroke();
-        const last = trail[trail.length - 1];
-        ctx.fillStyle = "#fff";
-        ctx.font = "12px sans-serif";
-        ctx.fillText(peer.name, last.x - cam.x + canvas.width / 2 + 10, last.y - cam.y + canvas.height / 2);
+        if (trail.length < 2) return;
+        const pa = (peer.skin && peer.skin.a) || "#e7c56a";
+        const pb = (peer.skin && peer.skin.b) || pa;
+        const fake = {
+          pts: trail,
+          radius: 7,
+          colorA: pa,
+          colorB: pb,
+          pattern: (peer.skin && peer.skin.p) || "solid",
+          species: (peer.skin && peer.skin.sp) || "cobra",
+          horn: (peer.skin && peer.skin.h) || "none",
+          tail: (peer.skin && peer.skin.t) || "none",
+          eyes: (peer.skin && peer.skin.e) || "#f5e6a8",
+          dir: Math.atan2(trail[0].y - trail[1].y, trail[0].x - trail[1].x),
+          name: peer.name || "",
+        };
+        drawSnake(fake, cam);
       });
     }
     drawMinimap(w);
