@@ -2687,7 +2687,7 @@
           const el = document.getElementById("wallet-status");
           if (el) el.textContent = "Den server linked · socket live";
         } 
-                if (m && m.t === "pos" && m.name && m.name !== state.playerName) {
+          if (m && m.t === "pos" && m.name && m.name !== state.playerName) {
           window.apexPeers = window.apexPeers || {};
           const prev = window.apexPeers[m.name] || { trail: [] };
           const trail = (prev.trail || []).concat([{ x: m.x, y: m.y }]).slice(-18);
