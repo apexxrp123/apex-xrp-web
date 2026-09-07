@@ -1223,12 +1223,19 @@
       ctx.fill();
     }
     for (const s of w.snakes) if (s.alive) drawSnake(s, cam);
-        const rem = window.apexPeers || {};
+    const rem = window.apexPeers || {};
     const now = Date.now();
     Object.keys(rem).forEach((nm) => {
       const r = rem[nm];
       if (!r || now - r.at > 3000) return;
-              trail.forEach((pt, i) => {
+      const trail = r.trail || [{ x: r.x, y: r.y }];
+      if (trail.length) {
+        ctx.strokeStyle = "#e7c56a";
+        ctx.lineWidth = 16;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.beginPath();
+        trail.forEach((pt, i) => {
           const hx = pt.x - cam.x + canvas.width / 2;
           const hy = pt.y - cam.y + canvas.height / 2;
           if (i === 0) ctx.moveTo(hx, hy);
@@ -1236,6 +1243,10 @@
         });
         ctx.stroke();
       }
+      ctx.fillStyle = "#fff";
+      ctx.font = "12px sans-serif";
+      ctx.fillText(nm, r.x - cam.x + canvas.width / 2 + 10, r.y - cam.y + canvas.height / 2);
+    });
     drawMinimap(w);
 
     if (w.snakes[0] && !w.snakes[0].alive && state.mode === "play" && !w.watch) {
