@@ -1274,7 +1274,7 @@
       if (!r || now - r.at > 3000) return;
       const trail = r.trail || [{ x: r.x, y: r.y }];
       if (trail.length) {
-        ctx.strokeStyle = "#e7c56a";
+        ctx.strokeStyle = (r.skin && r.skin.a) ? r.skin.a : "#e7c56a";
         ctx.lineWidth = 16;
         ctx.lineCap = "round";
         ctx.lineJoin = "round";
@@ -2783,7 +2783,7 @@
         if (m && m.t === "pos" && m.name && m.name !== state.playerName) {
           window.apexPeers = window.apexPeers || {};
           const trail = Array.isArray(m.pts) && m.pts.length ? m.pts : [{ x: m.x, y: m.y }];
-          window.apexPeers[m.name] = { x: m.x, y: m.y, at: Date.now(), trail: trail };
+          window.apexPeers[m.name] = { x: m.x, y: m.y, at: Date.now(), trail: trail, skin: m.skin || null };
         }
         if (m && m.t === "peers" && m.who) {
           pushChat("den", "Sockets: " + m.who.join(", "), true);
@@ -2798,7 +2798,14 @@
       if (!p) return;
       const you = state.world.snakes[0];
       const pts = you.pts.filter((_, i) => i % 2 === 0).slice(0, 24).map((q) => ({ x: Math.round(q.x), y: Math.round(q.y) }));
-      window.apexSock.send(JSON.stringify({ t: "pos", name: state.playerName, x: Math.round(p.x), y: Math.round(p.y), pts: pts }));
+      window.apexSock.send(JSON.stringify({
+        t: "pos",
+        name: state.playerName,
+        x: Math.round(p.x),
+        y: Math.round(p.y),
+        pts: pts,
+        skin: { a: state.skin.a, b: state.skin.b },
+      }));
     }, 50);
   } catch (_) {}
   
