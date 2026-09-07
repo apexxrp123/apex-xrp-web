@@ -2116,10 +2116,11 @@
         toast(/awake/i.test(t) ? "Den server awake" : "Den server odd reply");
         startMatch();
       })
-      .catch(() => {
+     .catch(() => {
         toast("Den server not reached — local pit");
         startMatch();
       });
+  });
 
   let incomingChal = null;
   function hideChalBanner() {
