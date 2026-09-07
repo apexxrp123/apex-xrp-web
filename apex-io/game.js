@@ -2687,9 +2687,11 @@
           const el = document.getElementById("wallet-status");
           if (el) el.textContent = "Den server linked · socket live";
         } 
-        if (m && m.t === "pos" && m.name && m.name !== state.playerName) {
+                if (m && m.t === "pos" && m.name && m.name !== state.playerName) {
           window.apexPeers = window.apexPeers || {};
-          window.apexPeers[m.name] = { x: m.x, y: m.y, at: Date.now() };
+          const prev = window.apexPeers[m.name] || { trail: [] };
+          const trail = (prev.trail || []).concat([{ x: m.x, y: m.y }]).slice(-18);
+          window.apexPeers[m.name] = { x: m.x, y: m.y, at: Date.now(), trail: trail };
         }
         if (m && m.t === "peers" && m.who) {
           pushChat("den", "Sockets: " + m.who.join(", "), true);
