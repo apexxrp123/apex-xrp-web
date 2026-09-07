@@ -1274,20 +1274,21 @@
       if (!r || now - r.at > 3000) return;
       const trail = r.trail || [{ x: r.x, y: r.y }];
       if (trail.length > 1) {
-        ctx.lineWidth = 16;
-        ctx.lineCap = "round";
-        ctx.lineJoin = "round";
         const pa = (r.skin && r.skin.a) || "#e7c56a";
         const pb = (r.skin && r.skin.b) || pa;
-        const pat = (r.skin && r.skin.p) || "solid";
-        for (let i = 1; i < trail.length; i++) {
-          const a = trail[i - 1], b = trail[i];
-          ctx.strokeStyle = patternColor(i, pat, pa, pb);
-          ctx.beginPath();
-          ctx.moveTo(a.x - cam.x + canvas.width / 2, a.y - cam.y + canvas.height / 2);
-          ctx.lineTo(b.x - cam.x + canvas.width / 2, b.y - cam.y + canvas.height / 2);
-          ctx.stroke();
-        }
+        const fake = {
+          pts: trail,
+          radius: 7,
+          colorA: pa,
+          colorB: pb,
+          pattern: (r.skin && r.skin.p) || "solid",
+          species: (r.skin && r.skin.sp) || "cobra",
+          horn: (r.skin && r.skin.h) || "none",
+          tail: (r.skin && r.skin.t) || "none",
+          eyes: (r.skin && r.skin.e) || "#f5e6a8",
+          dir: Math.atan2(trail[0].y - trail[1].y, trail[0].x - trail[1].x),
+        };
+        drawSnake(fake, cam);
       }
       ctx.fillStyle = "#fff";
       ctx.font = "12px sans-serif";
@@ -2806,7 +2807,15 @@
         x: Math.round(p.x),
         y: Math.round(p.y),
         pts: pts,
-        skin: { a: state.skin.a, b: state.skin.b, p: state.skin.pattern },
+        skin: {
+          a: state.skin.a,
+          b: state.skin.b,
+          p: state.skin.pattern,
+          sp: state.skin.species,
+          h: state.skin.horn,
+          t: state.skin.tail,
+          e: state.skin.eyes,
+        },
       }));
     }, 50);
   } catch (_) {}
