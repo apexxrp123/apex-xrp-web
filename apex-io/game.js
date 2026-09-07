@@ -1238,7 +1238,7 @@
       ctx.arc(fx, fy, f.r, 0, Math.PI * 2);
       ctx.fill();
     }
-    for (const f of w.dropped) {
+    for (const f of (state.mode === "killcam" ? [] : w.dropped)) {
       const pay = !!(f.fromPlayer && f.value > 0);
       ctx.beginPath();
       ctx.fillStyle = pay ? "#e7c56a" : "#9fe7c2";
@@ -1246,7 +1246,7 @@
       ctx.fill();
     }
     for (const s of w.snakes) if (s.alive) drawSnake(s, cam);
-    const rem = window.apexPeers || {};
+    const rem = state.mode === "play" ? (window.apexPeers || {}) : {};
     const now = Date.now();
     Object.keys(rem).forEach((nm) => {
       const r = rem[nm];
