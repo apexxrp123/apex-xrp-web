@@ -2755,10 +2755,8 @@
         }
         if (m && m.t === "dead" && m.name) {
           if (window.apexPeers) delete window.apexPeers[m.name];
-          if (m.by && m.by === state.playerName) {
-            toast("Fanged " + m.name)
-            }
-          } else toast(m.name + " dropped");
+          if (m.by && m.by === state.playerName) toast("Fanged " + m.name);
+          else toast(m.name + " dropped");
         }
         if (m && m.t === "shed" && state.world && Array.isArray(m.drops)) {
           m.drops.forEach((d) => {
