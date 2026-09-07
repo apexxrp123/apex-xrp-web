@@ -1243,7 +1243,6 @@
         });
         ctx.stroke();
       }
-      });
       const hx = r.x - cam.x + canvas.width / 2;
       const hy = r.y - cam.y + canvas.height / 2;
       ctx.fillStyle = "#fff";
