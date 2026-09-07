@@ -2756,11 +2756,7 @@
         if (m && m.t === "dead" && m.name) {
           if (window.apexPeers) delete window.apexPeers[m.name];
           if (m.by && m.by === state.playerName) {
-            toast("Fanged " + m.name);
-            if (state.world && state.mode === "play") {
-              const add = +(Number(m.stake) || 0).toFixed(4);
-              state.world.prizePool = +(state.world.prizePool + add).toFixed(4);
-              state.matchKills += 1;
+            toast("Fanged " + m.name)
             }
           } else toast(m.name + " dropped");
         }
