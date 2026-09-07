@@ -1228,12 +1228,17 @@
     Object.keys(rem).forEach((nm) => {
       const r = rem[nm];
       if (!r || now - r.at > 3000) return;
+      const trail = r.trail || [{ x: r.x, y: r.y }];
+      trail.forEach((pt, i) => {
+        const hx = pt.x - cam.x + canvas.width / 2;
+        const hy = pt.y - cam.y + canvas.height / 2;
+        ctx.fillStyle = "#e7c56a";
+        ctx.beginPath();
+        ctx.arc(hx, hy, 3 + i * 0.25, 0, Math.PI * 2);
+        ctx.fill();
+      });
       const hx = r.x - cam.x + canvas.width / 2;
       const hy = r.y - cam.y + canvas.height / 2;
-      ctx.fillStyle = "#e7c56a";
-      ctx.beginPath();
-      ctx.arc(hx, hy, 8, 0, Math.PI * 2);
-      ctx.fill();
       ctx.fillStyle = "#fff";
       ctx.font = "12px sans-serif";
       ctx.fillText(nm, hx + 10, hy);
