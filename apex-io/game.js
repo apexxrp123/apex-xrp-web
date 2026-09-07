@@ -705,7 +705,7 @@
     if (!s.alive) return;
     s.alive = false;
     if (s.isPlayer && window.apexSock && window.apexSock.readyState === 1) {
-      window.apexSock.send(JSON.stringify({ t: "dead", name: state.playerName }));
+      window.apexSock.send(JSON.stringify({ t: "dead", name: state.playerName, by: s.killedBy || "" }));
     }
     const n = Math.min(28, 6 + Math.floor(s.pts.length / 4));
     const playerDrop = !!s.isPlayer;
@@ -894,6 +894,7 @@
         for (let i = 0; i < Math.max(0, pts.length - 6); i++) {
           const dx = hx - pts[i].x, dy = hy - pts[i].y;
           if (dx * dx + dy * dy < hitR2) {
+            you.killedBy = names[n];
             killSnake(you, w);
             you.death = "body";
             toast("Hit " + names[n]);
