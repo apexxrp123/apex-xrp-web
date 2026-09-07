@@ -265,21 +265,29 @@
     return cleanName("Hunter" + Math.floor(1000 + Math.random() * 9000));
   }
 
-  function plantTrees(map, count, keepClear) {
+   function plantTrees(map, count) {
+    let s = 0xA9E4 ^ map;
+    const rand = () => {
+      s |= 0;
+      s = (s + 0x6D2B79F5) | 0;
+      let t = Math.imul(s ^ (s >>> 15), 1 | s);
+      t = t + Math.imul(t ^ (t >>> 7), 61 | t) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
     const trees = [];
     let guard = 0;
     while (trees.length < count && guard < count * 20) {
       guard++;
       const t = {
-        x: 180 + Math.random() * (map - 360),
-        y: 180 + Math.random() * (map - 360),
-        trunk: 16 + Math.random() * 10,
-        canopy: 48 + Math.random() * 28,
-        hue: 110 + Math.random() * 30,
+        x: 180 + rand() * (map - 360),
+        y: 180 + rand() * (map - 360),
+        trunk: 16 + rand() * 10,
+        canopy: 48 + rand() * 28,
+        hue: 110 + rand() * 30,
       };
-      const farSpawn = Math.hypot(t.x - keepClear.x, t.y - keepClear.y) > 160;
+      const farMid = Math.hypot(t.x - map / 2, t.y - map / 2) > 160;
       const farOther = trees.every((o) => Math.hypot(o.x - t.x, o.y - t.y) > 130);
-      if (farSpawn && farOther) trees.push(t);
+      if (farMid && farOther) trees.push(t);
     }
     return trees;
   }
@@ -654,7 +662,7 @@
       });
     }
 
-    const trees = plantTrees(map, TRAILER ? Math.min(12, state.tier.trees || 0) : (state.tier.trees || 0), player.pts[0]);
+    const trees = plantTrees(map, TRAILER ? Math.min(12, state.tier.trees || 0) : (state.tier.trees || 0));
     state.world = {
       map,
       biome: state.tier.biome,
