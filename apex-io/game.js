@@ -898,8 +898,17 @@
         const r = rem[names[n]];
         if (!r || Date.now() - r.at > 3000) continue;
         const pts = r.trail || [{ x: r.x, y: r.y }];
-        for (let i = 0; i < Math.max(0, pts.length - 6); i++) {
-          const dx = hx - pts[i].x, dy = hy - pts[i].y;
+        const last = Math.max(1, pts.length - 2);
+        for (let i = 1; i < last && you.alive; i++) {
+          const ax = pts[i - 1].x, ay = pts[i - 1].y;
+          const bx = pts[i].x, by = pts[i].y;
+          const vx = bx - ax, vy = by - ay;
+          const len2 = vx * vx + vy * vy || 1;
+          let t = ((hx - ax) * vx + (hy - ay) * vy) / len2;
+          if (t < 0) t = 0;
+          if (t > 1) t = 1;
+          const px = ax + t * vx, py = ay + t * vy;
+          const dx = hx - px, dy = hy - py;
           if (dx * dx + dy * dy < hitR2) {
             you.killedBy = names[n];
             killSnake(you, w);
@@ -907,6 +916,7 @@
             toast("Hit " + names[n]);
             break;
           }
+        }
         }
       }
     }
