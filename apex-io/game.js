@@ -2636,18 +2636,15 @@
   renderWallets();
   fetch("https://apex-xrp-server-production.up.railway.app/")
     .then((r) => r.text())
-    .then((t) => {
-      const el = document.getElementById("wallet-status");
-      if (el && /ok/i.test(t)) el.textContent = "Den server linked (no XRP yet).";
-    })
+        .then(() => {})
     .catch(() => {});
-  fetch("https://apex-xrp-server-production.up.railway.app/hello?name=" + encodeURIComponent(state.playerName))
+    fetch("https://apex-xrp-server-production.up.railway.app/hello?name=" + encodeURIComponent(state.playerName))
     .then((r) => r.json())
     .then((j) => {
       const el = document.getElementById("wallet-status");
       if (el && j && j.ok) el.textContent = "Den server linked · checked in as " + state.playerName;
     })
-    .catch(() => {});
+
   refreshPrice();
   refreshNews();
   setInterval(refreshNews, 180000);
