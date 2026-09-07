@@ -1574,7 +1574,8 @@
       applyWatchUi(true);
       cycleWatch(1);
     };
-    document.getElementById("again").onclick = () => {
+        document.getElementById("again").onclick = () => {
+      fetch("https://apex-xrp-server-production.up.railway.app/room/jungle/leave?name=" + encodeURIComponent(state.playerName)).catch(() => {});
       state.world = null;
       state.mode = "lobby";
       overlay.classList.add("hidden");
