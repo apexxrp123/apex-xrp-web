@@ -2110,18 +2110,18 @@
       toast("You're already in the pit.");
       return;
     }
-        fetch("https://apex-xrp-server-production.up.railway.app/den")
+    fetch("https://apex-xrp-server-production.up.railway.app/den")
       .then((r) => r.text())
       .then((t) => {
         toast(/awake/i.test(t) ? "Den server awake" : "Den server odd reply");
         startMatch();
       })
-     .catch(() => {
+      .catch(() => {
         toast("Den server not reached — local pit");
         startMatch();
       });
   });
-
+  
   let incomingChal = null;
   function hideChalBanner() {
     const b = document.getElementById("chal-banner");
