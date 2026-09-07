@@ -1229,14 +1229,20 @@
       const r = rem[nm];
       if (!r || now - r.at > 3000) return;
       const trail = r.trail || [{ x: r.x, y: r.y }];
-      trail.forEach((pt, i) => {
-        const hx = pt.x - cam.x + canvas.width / 2;
-        const hy = pt.y - cam.y + canvas.height / 2;
-        const last = i === trail.length - 1;
-        ctx.fillStyle = last ? "#ffe9a8" : "#e7c56a";
+      if (trail.length) {
+        ctx.strokeStyle = "#e7c56a";
+        ctx.lineWidth = 16;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
         ctx.beginPath();
-        ctx.arc(hx, hy, last ? 11 : 7, 0, Math.PI * 2);
-        ctx.fill();
+        trail.forEach((pt, i) => {
+          const hx = pt.x - cam.x + canvas.width / 2;
+          const hy = pt.y - cam.y + canvas.height / 2;
+          if (i === 0) ctx.moveTo(hx, hy);
+          else ctx.lineTo(hx, hy);
+        });
+        ctx.stroke();
+      }
       });
       const hx = r.x - cam.x + canvas.width / 2;
       const hy = r.y - cam.y + canvas.height / 2;
