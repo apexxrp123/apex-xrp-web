@@ -1273,19 +1273,22 @@
       const r = rem[nm];
       if (!r || now - r.at > 3000) return;
       const trail = r.trail || [{ x: r.x, y: r.y }];
-      if (trail.length) {
-        ctx.strokeStyle = (r.skin && r.skin.a) ? r.skin.a : "#e7c56a";
+      if (trail.length > 1) {
         ctx.lineWidth = 16;
         ctx.lineCap = "round";
         ctx.lineJoin = "round";
-        ctx.beginPath();
-        trail.forEach((pt, i) => {
-          const hx = pt.x - cam.x + canvas.width / 2;
-          const hy = pt.y - cam.y + canvas.height / 2;
-          if (i === 0) ctx.moveTo(hx, hy);
-          else ctx.lineTo(hx, hy);
-        });
-        ctx.stroke();
+        const pa = (r.skin && r.skin.a) || "#e7c56a";
+        const pb = (r.skin && r.skin.b) || pa;
+        const pat = (r.skin && r.skin.p) || "solid";
+        for (let i = 1; i < trail.length; i++) {
+          const a = trail[i - 1], b = trail[i];
+          ctx.strokeStyle = patternColor(i, pat, pa, pb);
+          ctx.beginPath();
+          ctx.moveTo(a.x - cam.x + canvas.width / 2, a.y - cam.y + canvas.height / 2);
+          ctx.lineTo(b.x - cam.x + canvas.width / 2, b.y - cam.y + canvas.height / 2);
+          ctx.stroke();
+        }
+      }
       }
       ctx.fillStyle = "#fff";
       ctx.font = "12px sans-serif";
@@ -2804,7 +2807,7 @@
         x: Math.round(p.x),
         y: Math.round(p.y),
         pts: pts,
-        skin: { a: state.skin.a, b: state.skin.b },
+        skin: { a: state.skin.a, b: state.skin.b, p: state.skin.pattern },
       }));
     }, 50);
   } catch (_) {}
