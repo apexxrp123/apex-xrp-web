@@ -1287,11 +1287,9 @@
           tail: (r.skin && r.skin.t) || "none",
           eyes: (r.skin && r.skin.e) || "#f5e6a8",
           dir: Math.atan2(trail[0].y - trail[1].y, trail[0].x - trail[1].x),
+          name: nm,
         };
         drawSnake(fake, cam);
-      }
-      ctx.fillStyle = "#fff";
-      ctx.font = "12px sans-serif";
       ctx.fillText(nm, r.x - cam.x + canvas.width / 2 + 10, r.y - cam.y + canvas.height / 2);
     });
     if (state.mode === "killcam" && w.kcPeers) {
