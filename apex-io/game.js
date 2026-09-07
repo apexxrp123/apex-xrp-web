@@ -2654,18 +2654,6 @@
         })
         .catch(() => {});
     })
-  try {
-    const sock = new WebSocket("wss://apex-xrp-server-production.up.railway.app");
-    sock.onmessage = (ev) => {
-      try {
-        const m = JSON.parse(ev.data);
-        if (m && m.t === "hi") {
-          const el = document.getElementById("wallet-status");
-          if (el) el.textContent = "Den server linked · socket live";
-        }
-      } catch (_) {}
-    };
-  } catch (_) {}
     try {
     const sock = new WebSocket("wss://apex-xrp-server-production.up.railway.app");
     sock.onopen = () => {
@@ -2685,8 +2673,6 @@
       } catch (_) {}
     };
   } catch (_) {}
-  refreshPrice();
-  refreshNews();
   refreshPrice();
   refreshNews();
   setInterval(refreshNews, 180000);
