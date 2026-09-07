@@ -2709,7 +2709,7 @@
       const p = state.world.snakes[0].pts[0];
       if (!p) return;
       window.apexSock.send(JSON.stringify({ t: "pos", name: state.playerName, x: Math.round(p.x), y: Math.round(p.y) }));
-    }, 100);
+    }, 50);
   } catch (_) {}
   
   refreshPrice();
