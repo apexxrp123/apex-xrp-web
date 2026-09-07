@@ -704,6 +704,9 @@
   function killSnake(s, world) {
     if (!s.alive) return;
     s.alive = false;
+    if (s.isPlayer && window.apexSock && window.apexSock.readyState === 1) {
+      window.apexSock.send(JSON.stringify({ t: "dead", name: state.playerName }));
+    }
     const n = Math.min(28, 6 + Math.floor(s.pts.length / 4));
     const playerDrop = !!s.isPlayer;
     const pile = playerDrop ? (s.bounty ? s.stake * 1.25 + 1 : s.stake) : 0;
@@ -2710,7 +2713,11 @@
         if (m && m.t === "hi") {
           const el = document.getElementById("wallet-status");
           if (el) el.textContent = "Den server linked · socket live";
-        } 
+        }
+        if (m && m.t === "dead" && m.name && window.apexPeers) {
+          delete window.apexPeers[m.name];
+          toast(m.name + " dropped");
+        }
           if (m && m.t === "pos" && m.name && m.name !== state.playerName) {
           window.apexPeers = window.apexPeers || {};
           const prev = window.apexPeers[m.name] || { trail: [] };
