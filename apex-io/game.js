@@ -291,7 +291,15 @@
     }
     return trees;
   }
-
+  function foodSpot(map, i) {
+    return {
+      x: 40 + ((i * 137 + 19) % (map - 80)),
+      y: 40 + ((i * 97 + 41) % (map - 80)),
+      r: 3 + (i % 3) * 0.6,
+      c: "#9fe7c2",
+      value: 0,
+    };
+  }
   function hitTree(x, y, trees, pad) {
     for (const t of trees) {
       const dx = x - t.x, dy = y - t.y;
@@ -652,7 +660,7 @@
     }
 
     const food = [];
-    for (let i = 0; i < 280; i++) {
+      for (let i = 0; i < 280; i++) food.push(foodSpot(map, i));
       food.push({
         x: Math.random() * map,
         y: Math.random() * map,
@@ -838,7 +846,7 @@
     eatFrom(w.dropped, true);
     let refill = 0;
     while (w.food.length < 280 && refill < 8) {
-      w.food.push({
+        w.food.push(foodSpot(w.map, w.food.length + refill + 280));
         x: Math.random() * w.map,
         y: Math.random() * w.map,
         r: 3 + Math.random() * 2,
