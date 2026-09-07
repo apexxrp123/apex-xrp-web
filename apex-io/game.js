@@ -2643,6 +2643,15 @@
     .then((j) => {
       const el = document.getElementById("wallet-status");
       if (el && j && j.ok) el.textContent = "Den server linked · checked in as " + state.playerName;
+      fetch("https://apex-xrp-server-production.up.railway.app/who")
+        .then((r) => r.json())
+        .then((w) => {
+          if (w && w.who) {
+            pushChat("den", "Online: " + w.who.join(", "), true);
+            renderChat();
+          }
+        })
+        .catch(() => {});
     })
 
   refreshPrice();
