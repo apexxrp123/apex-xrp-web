@@ -1240,7 +1240,6 @@
           const hy = pt.y - cam.y + canvas.height / 2;
           if (i === 0) ctx.moveTo(hx, hy);
           else ctx.lineTo(hx, hy);
-        });
         ctx.stroke();
       }
       const hx = r.x - cam.x + canvas.width / 2;
