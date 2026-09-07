@@ -723,6 +723,8 @@
         fromPlayer: !!(playerDrop && pile > 0),
       });
     }
+    });
+    }
     if (s.isPlayer && window.apexSock && window.apexSock.readyState === 1 && pile > 0) {
       window.apexSock.send(JSON.stringify({
         t: "shed",
@@ -730,6 +732,7 @@
         drops: world.dropped.slice(-n).map((d) => ({ x: d.x, y: d.y, value: d.value })),
       }));
     }
+}
   }
 
   function update(dt) {
