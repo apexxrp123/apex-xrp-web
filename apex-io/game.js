@@ -2764,6 +2764,19 @@
             }
           } else toast(m.name + " dropped");
         }
+        if (m && m.t === "shed" && state.world && Array.isArray(m.drops)) {
+          m.drops.forEach((d) => {
+            state.world.dropped.push({
+              x: Number(d.x) || 0,
+              y: Number(d.y) || 0,
+              r: 5,
+              c: "#e7c56a",
+              value: Number(d.value) || 0,
+              fromPlayer: true,
+            });
+          });
+          toast(m.name + " shed gold");
+        }
           if (m && m.t === "pos" && m.name && m.name !== state.playerName) {
           window.apexPeers = window.apexPeers || {};
           const prev = window.apexPeers[m.name] || { trail: [] };
