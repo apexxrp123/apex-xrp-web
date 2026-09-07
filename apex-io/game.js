@@ -1228,14 +1228,7 @@
     Object.keys(rem).forEach((nm) => {
       const r = rem[nm];
       if (!r || now - r.at > 3000) return;
-      const trail = r.trail || [{ x: r.x, y: r.y }];
-      if (trail.length) {
-        ctx.strokeStyle = "#e7c56a";
-        ctx.lineWidth = 16;
-        ctx.lineCap = "round";
-        ctx.lineJoin = "round";
-        ctx.beginPath();
-                trail.forEach((pt, i) => {
+              trail.forEach((pt, i) => {
           const hx = pt.x - cam.x + canvas.width / 2;
           const hy = pt.y - cam.y + canvas.height / 2;
           if (i === 0) ctx.moveTo(hx, hy);
@@ -1243,12 +1236,6 @@
         });
         ctx.stroke();
       }
-      const hx = r.x - cam.x + canvas.width / 2;
-      const hy = r.y - cam.y + canvas.height / 2;
-      ctx.fillStyle = "#fff";
-      ctx.font = "12px sans-serif";
-      ctx.fillText(nm, hx + 10, hy);
-    });
     drawMinimap(w);
 
     if (w.snakes[0] && !w.snakes[0].alive && state.mode === "play" && !w.watch) {
