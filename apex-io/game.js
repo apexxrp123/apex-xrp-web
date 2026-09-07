@@ -891,7 +891,7 @@
         const r = rem[names[n]];
         if (!r || Date.now() - r.at > 3000) continue;
         const pts = r.trail || [{ x: r.x, y: r.y }];
-        for (let i = 0; i < pts.length; i++) {
+        for (let i = 0; i < Math.max(0, pts.length - 3); i++) {
           const dx = hx - pts[i].x, dy = hy - pts[i].y;
           if (dx * dx + dy * dy < hitR2) {
             killSnake(you, w);
@@ -1345,6 +1345,10 @@
     if (w.snakes[0] && frame.you) {
       w.snakes[0].alive = true;
       w.snakes[0].pts = frame.you;
+      if (frame.you.length > 1) {
+        const a = frame.you[0], b = frame.you[1];
+        w.snakes[0].dir = Math.atan2(a.y - b.y, a.x - b.x);
+      }
       w.kcPeers = frame.peers || [];
     }
   }
