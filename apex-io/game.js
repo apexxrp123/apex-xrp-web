@@ -2666,6 +2666,27 @@
       } catch (_) {}
     };
   } catch (_) {}
+    try {
+    const sock = new WebSocket("wss://apex-xrp-server-production.up.railway.app");
+    sock.onopen = () => {
+      sock.send(JSON.stringify({ t: "name", name: state.playerName }));
+    };
+    sock.onmessage = (ev) => {
+      try {
+        const m = JSON.parse(ev.data);
+        if (m && m.t === "hi") {
+          const el = document.getElementById("wallet-status");
+          if (el) el.textContent = "Den server linked · socket live";
+        }
+        if (m && m.t === "peers" && m.who) {
+          pushChat("den", "Sockets: " + m.who.join(", "), true);
+          renderChat();
+        }
+      } catch (_) {}
+    };
+  } catch (_) {}
+  refreshPrice();
+  refreshNews();
   refreshPrice();
   refreshNews();
   setInterval(refreshNews, 180000);
