@@ -2110,10 +2110,10 @@
       toast("You're already in the pit.");
       return;
     }
-    fetch("https://apex-xrp-server-production.up.railway.app/den")
-      .then((r) => r.text())
-      .then((t) => {
-        toast(/awake/i.test(t) ? "Den server awake" : "Den server odd reply");
+        fetch("https://apex-xrp-server-production.up.railway.app/den")
+      .then((r) => r.json())
+      .then((j) => {
+        toast(j && j.match ? "Match " + j.match : "Den server awake");
         startMatch();
       })
       .catch(() => {
