@@ -731,7 +731,6 @@
       }));
     }
   }
-  }
 
   function update(dt) {
     const w = state.world;
