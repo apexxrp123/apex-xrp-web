@@ -728,9 +728,9 @@
         t: "shed",
         name: state.playerName,
         drops: world.dropped.slice(-n).map((d) => ({ x: d.x, y: d.y, value: d.value })),
-      });
+      }));
     }
-      
+  }   
   function update(dt) {
     const w = state.world;
     if (!w) return;
