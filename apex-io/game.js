@@ -707,15 +707,16 @@
     if (s.isPlayer && window.apexSock && window.apexSock.readyState === 1) {
       window.apexSock.send(JSON.stringify({ t: "dead", name: state.playerName, by: s.killedBy || "", stake: s.stake || 0 }));
     }
-    const n = Math.min(28, 6 + Math.floor(s.pts.length / 4));
+    const body = s.pts || [];
     const playerDrop = !!s.isPlayer;
+    const n = Math.min(body.length, playerDrop ? Math.max(6, Math.floor(body.length / 2)) : Math.min(10, body.length));
     const pile = playerDrop ? (s.bounty ? s.stake * 1.25 + 1 : s.stake) : 0;
     if (s.bounty && playerDrop) pushChat("den", "Bounty dropped: " + s.name + ". Yellow sheds are fat.", true);
     for (let i = 0; i < n; i++) {
-      const p = s.pts[Math.floor((i / n) * s.pts.length)] || s.pts[0];
+      const p = body[Math.floor((i / Math.max(1, n - 1)) * (body.length - 1))] || body[0];
       world.dropped.push({
-        x: p.x + (Math.random() - 0.5) * 18,
-        y: p.y + (Math.random() - 0.5) * 18,
+        x: p.x,
+        y: p.y,
         r: playerDrop ? 5 : 4,
         c: playerDrop && pile > 0 ? "#e7c56a" : "#9fe7c2",
         value: playerDrop && pile > 0 ? +(pile / n).toFixed(4) : 0,
