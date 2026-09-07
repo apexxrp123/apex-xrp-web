@@ -1223,6 +1223,21 @@
       ctx.fill();
     }
     for (const s of w.snakes) if (s.alive) drawSnake(s, cam);
+        const rem = window.apexPeers || {};
+    const now = Date.now();
+    Object.keys(rem).forEach((nm) => {
+      const r = rem[nm];
+      if (!r || now - r.at > 3000) return;
+      const hx = r.x - cam.x + canvas.width / 2;
+      const hy = r.y - cam.y + canvas.height / 2;
+      ctx.fillStyle = "#e7c56a";
+      ctx.beginPath();
+      ctx.arc(hx, hy, 8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#fff";
+      ctx.font = "12px sans-serif";
+      ctx.fillText(nm, hx + 10, hy);
+    });
     drawMinimap(w);
 
     if (w.snakes[0] && !w.snakes[0].alive && state.mode === "play" && !w.watch) {
@@ -2666,6 +2681,10 @@
         if (m && m.t === "hi") {
           const el = document.getElementById("wallet-status");
           if (el) el.textContent = "Den server linked · socket live";
+        } 
+        if (m && m.t === "pos" && m.name && m.name !== state.playerName) {
+          window.apexPeers = window.apexPeers || {};
+          window.apexPeers[m.name] = { x: m.x, y: m.y, at: Date.now() };
         }
         if (m && m.t === "peers" && m.who) {
           pushChat("den", "Sockets: " + m.who.join(", "), true);
