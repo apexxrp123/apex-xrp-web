@@ -1290,7 +1290,7 @@
           name: nm,
         };
         drawSnake(fake, cam);
-      ctx.fillText(nm, r.x - cam.x + canvas.width / 2 + 10, r.y - cam.y + canvas.height / 2);
+      }
     });
     if (state.mode === "killcam" && w.kcPeers) {
       w.kcPeers.forEach((peer) => {
