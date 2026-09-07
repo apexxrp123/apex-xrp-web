@@ -2758,6 +2758,8 @@
           if (m.by && m.by === state.playerName) toast("Fanged " + m.name);
           else toast(m.name + " dropped");
         }
+        if (m && m.t === "shed" && state.world && Array.isArray(m.drops)) {
+          m.drops.forEach((d) => {
             state.world.dropped.push({
               x: Number(d.x) || 0,
               y: Number(d.y) || 0,
@@ -2769,7 +2771,7 @@
           });
           toast(m.name + " shed gold");
         }
-          if (m && m.t === "pos" && m.name && m.name !== state.playerName) {
+        if (m && m.t === "pos" && m.name && m.name !== state.playerName) {
           window.apexPeers = window.apexPeers || {};
           const prev = window.apexPeers[m.name] || { trail: [] };
           const trail = (prev.trail || []).concat([{ x: m.x, y: m.y }]).slice(-18);
@@ -2781,10 +2783,6 @@
         }
       } catch (_) {}
     };
-    setInterval(() => {
-      if (!window.apexSock || window.apexSock.readyState !== 1) return;
-      if (state.mode !== "play" || !state.world || !state.world.snakes[0]) return;
-      const p = state.world.snakes[0].pts[0];
       if (!p) return;
       window.apexSock.send(JSON.stringify({ t: "pos", name: state.playerName, x: Math.round(p.x), y: Math.round(p.y) }));
     }, 50);
