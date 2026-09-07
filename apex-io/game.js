@@ -2670,8 +2670,7 @@
                 if (m && m.t === "peers" && m.who) {
           pushChat("den", "Sockets: " + m.who.join(", "), true);
           renderChat();
-        }
-      } catch (_) {}
+             } catch (_) {}
     };
     setInterval(() => {
       if (!window.apexSock || window.apexSock.readyState !== 1) return;
@@ -2681,6 +2680,7 @@
       window.apexSock.send(JSON.stringify({ t: "pos", name: state.playerName, x: Math.round(p.x), y: Math.round(p.y) }));
     }, 100);
   } catch (_) {}
+  
   refreshPrice();
   refreshNews();
   setInterval(refreshNews, 180000);
