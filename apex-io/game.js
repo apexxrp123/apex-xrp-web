@@ -2207,7 +2207,7 @@
       toast("You're already in the pit.");
       return;
     }
-     fetch("https://apex-xrp-server-production.up.railway.app/room/jungle?name=" + encodeURIComponent(state.playerName))
+         fetch("https://apex-xrp-server-production.up.railway.app/room/jungle?name=" + encodeURIComponent(state.playerName))
       .then((r) => r.json())
       .then((j) => {
         if (j && j.full) {
