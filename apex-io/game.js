@@ -2667,18 +2667,19 @@
           const el = document.getElementById("wallet-status");
           if (el) el.textContent = "Den server linked · socket live";
         }
-        if (m && m.t === "peers" && m.who) {
+                if (m && m.t === "peers" && m.who) {
           pushChat("den", "Sockets: " + m.who.join(", "), true);
           renderChat();
         }
-      } setInterval(() => {
+      } catch (_) {}
+    };
+    setInterval(() => {
       if (!window.apexSock || window.apexSock.readyState !== 1) return;
       if (state.mode !== "play" || !state.world || !state.world.snakes[0]) return;
       const p = state.world.snakes[0].pts[0];
       if (!p) return;
       window.apexSock.send(JSON.stringify({ t: "pos", name: state.playerName, x: Math.round(p.x), y: Math.round(p.y) }));
-    }, 100); catch (_) {}
-    };
+    }, 100);
   } catch (_) {}
   refreshPrice();
   refreshNews();
