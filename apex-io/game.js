@@ -1235,11 +1235,12 @@
         ctx.lineCap = "round";
         ctx.lineJoin = "round";
         ctx.beginPath();
-        trail.forEach((pt, i) => {
+                trail.forEach((pt, i) => {
           const hx = pt.x - cam.x + canvas.width / 2;
           const hy = pt.y - cam.y + canvas.height / 2;
           if (i === 0) ctx.moveTo(hx, hy);
           else ctx.lineTo(hx, hy);
+        });
         ctx.stroke();
       }
       const hx = r.x - cam.x + canvas.width / 2;
