@@ -914,6 +914,10 @@
             a: s.colorA,
             pts: s.pts.filter((_, i) => i % 3 === 0).slice(0, 36).map((p) => ({ x: p.x, y: p.y })),
           })),
+          peers: Object.keys(window.apexPeers || {}).map((nm) => {
+            const r = window.apexPeers[nm];
+            return { name: nm, pts: (r.trail || [{ x: r.x, y: r.y }]).map((p) => ({ x: p.x, y: p.y })) };
+          }),
         });
         if (w.tape.length > 300) w.tape.shift();
       }
@@ -1270,6 +1274,28 @@
       ctx.font = "12px sans-serif";
       ctx.fillText(nm, r.x - cam.x + canvas.width / 2 + 10, r.y - cam.y + canvas.height / 2);
     });
+    if (state.mode === "killcam" && w.kcPeers) {
+      w.kcPeers.forEach((peer) => {
+        const trail = peer.pts || [];
+        if (!trail.length) return;
+        ctx.strokeStyle = "#e7c56a";
+        ctx.lineWidth = 16;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.beginPath();
+        trail.forEach((pt, i) => {
+          const hx = pt.x - cam.x + canvas.width / 2;
+          const hy = pt.y - cam.y + canvas.height / 2;
+          if (i === 0) ctx.moveTo(hx, hy);
+          else ctx.lineTo(hx, hy);
+        });
+        ctx.stroke();
+        const last = trail[trail.length - 1];
+        ctx.fillStyle = "#fff";
+        ctx.font = "12px sans-serif";
+        ctx.fillText(peer.name, last.x - cam.x + canvas.width / 2 + 10, last.y - cam.y + canvas.height / 2);
+      });
+    }
     drawMinimap(w);
 
     if (w.snakes[0] && !w.snakes[0].alive && state.mode === "play" && !w.watch) {
@@ -1319,6 +1345,7 @@
     if (w.snakes[0] && frame.you) {
       w.snakes[0].alive = true;
       w.snakes[0].pts = frame.you;
+      w.kcPeers = frame.peers || [];
     }
   }
 
