@@ -2645,6 +2645,7 @@
       if (el && j && j.ok) el.textContent = "Den server linked · checked in as " + state.playerName;
     })
 
+  /who
   refreshPrice();
   refreshNews();
   setInterval(refreshNews, 180000);
