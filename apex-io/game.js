@@ -2782,8 +2782,7 @@
         }
         if (m && m.t === "pos" && m.name && m.name !== state.playerName) {
           window.apexPeers = window.apexPeers || {};
-          const prev = window.apexPeers[m.name] || { trail: [] };
-          const trail = (prev.trail || []).concat([{ x: m.x, y: m.y }]).slice(-18);
+          const trail = Array.isArray(m.pts) && m.pts.length ? m.pts : [{ x: m.x, y: m.y }];
           window.apexPeers[m.name] = { x: m.x, y: m.y, at: Date.now(), trail: trail };
         }
         if (m && m.t === "peers" && m.who) {
@@ -2797,7 +2796,9 @@
       if (state.mode !== "play" || !state.world || !state.world.snakes[0]) return;
       const p = state.world.snakes[0].pts[0];
       if (!p) return;
-      window.apexSock.send(JSON.stringify({ t: "pos", name: state.playerName, x: Math.round(p.x), y: Math.round(p.y) }));
+      const you = state.world.snakes[0];
+      const pts = you.pts.filter((_, i) => i % 2 === 0).slice(0, 24).map((q) => ({ x: Math.round(q.x), y: Math.round(q.y) }));
+      window.apexSock.send(JSON.stringify({ t: "pos", name: state.playerName, x: Math.round(p.x), y: Math.round(p.y), pts: pts }));
     }, 50);
   } catch (_) {}
   
