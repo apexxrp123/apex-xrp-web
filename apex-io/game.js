@@ -1311,7 +1311,7 @@
           dir: Math.atan2(trail[0].y - trail[1].y, trail[0].x - trail[1].x),
           name: peer.name || "",
         };
-        drawSnake(fake, cam);
+        drawSnake(fake, cam); 
       });
     }
     drawMinimap(w);
