@@ -2783,9 +2783,13 @@
         }
       } catch (_) {}
     };
-      setInterval(() => {
+    setInterval(() => {
       if (!window.apexSock || window.apexSock.readyState !== 1) return;
       if (state.mode !== "play" || !state.world || !state.world.snakes[0]) return;
+      const p = state.world.snakes[0].pts[0];
+      if (!p) return;
+      window.apexSock.send(JSON.stringify({ t: "pos", name: state.playerName, x: Math.round(p.x), y: Math.round(p.y) }));
+    }, 50);
       const p = state.world.snakes[0].pts[0];
       if (!p) return;
       window.apexSock.send(JSON.stringify({ t: "pos", name: state.playerName, x: Math.round(p.x), y: Math.round(p.y) }));
