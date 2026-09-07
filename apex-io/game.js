@@ -908,7 +908,7 @@
       if ((w._tick || 0) % 2 === 0) {
         w.tape.push({
           cam: { x: w.cam.x, y: w.cam.y },
-          you: you.pts.filter((_, i) => i % 2 === 0).map((p) => ({ x: p.x, y: p.y })),
+          you: you.pts.map((p) => ({ x: p.x, y: p.y })),
           others: w.snakes.filter((s) => s.alive && !s.isPlayer).map((s) => ({
             name: s.name,
             a: s.colorA,
