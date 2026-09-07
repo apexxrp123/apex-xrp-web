@@ -2671,7 +2671,7 @@
           pushChat("den", "Sockets: " + m.who.join(", "), true);
           renderChat();
         }
-      }     setInterval(() => {
+      } setInterval(() => {
       if (!window.apexSock || window.apexSock.readyState !== 1) return;
       if (state.mode !== "play" || !state.world || !state.world.snakes[0]) return;
       const p = state.world.snakes[0].pts[0];
