@@ -885,13 +885,13 @@
     if (you && you.alive && you.isPlayer && !w.watch && !w.grace) {
       const rem = window.apexPeers || {};
       const hx = you.pts[0].x, hy = you.pts[0].y;
-      const hitR2 = 14 * 14;
+      const hitR2 = 8 * 8;
       const names = Object.keys(rem);
       for (let n = 0; n < names.length && you.alive; n++) {
         const r = rem[names[n]];
         if (!r || Date.now() - r.at > 3000) continue;
         const pts = r.trail || [{ x: r.x, y: r.y }];
-        for (let i = 0; i < Math.max(0, pts.length - 3); i++) {
+        for (let i = 0; i < Math.max(0, pts.length - 6); i++) {
           const dx = hx - pts[i].x, dy = hy - pts[i].y;
           if (dx * dx + dy * dy < hitR2) {
             killSnake(you, w);
