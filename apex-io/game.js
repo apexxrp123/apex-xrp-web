@@ -2207,7 +2207,9 @@
       toast("You're already in the pit.");
       return;
     }
-        .then((j) => {
+     fetch("https://apex-xrp-server-production.up.railway.app/room/jungle?name=" + encodeURIComponent(state.playerName))
+      .then((r) => r.json())
+      .then((j) => {
         if (j && j.full) {
           toast("Den is full. Eight hunters max.");
           return;
