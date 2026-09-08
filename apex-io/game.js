@@ -1654,7 +1654,7 @@
       toast("All-in coil: grow to 28 first.");
       return;
     }
-    const gross = w.prizePool;
+    const gross = Math.round((w.prizePool || 0) * 100) / 100;
     const fee = +(gross * FEE_RATE).toFixed(4);
     const net = +(gross - fee).toFixed(4);
     state.balanceXrp = +(state.balanceXrp + net).toFixed(6);
