@@ -706,8 +706,7 @@
     const body = s.pts || [];
     const playerDrop = !!s.isPlayer;
     const n = Math.min(body.length, playerDrop ? Math.max(6, Math.floor(body.length / 2)) : Math.min(10, body.length));
-    const pile = playerDrop ? ((s.bounty && !(world && world.duel)) ? s.stake * 1.25 + 1 : s.stake) : 0;
-    if (s.bounty && playerDrop) pushChat("den", "Bounty dropped: " + s.name + ". Yellow sheds are fat.", true);
+    const pile = playerDrop ? (s.stake || 0) : 0;
     for (let i = 0; i < n; i++) {
       const p = body[Math.floor((i / Math.max(1, n - 1)) * (body.length - 1))] || body[0];
       world.dropped.push({
