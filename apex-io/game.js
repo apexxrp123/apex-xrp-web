@@ -1432,6 +1432,15 @@
       ctx.arc(px, py, s.isPlayer ? 4.5 : 3.2, 0, Math.PI * 2);
       ctx.fill();
     }
+    const rem = window.apexPeers || {};
+    Object.keys(rem).forEach((nm) => {
+      const r = rem[nm];
+      if (!r || Date.now() - r.at > 3000) return;
+      ctx.beginPath();
+      ctx.fillStyle = "#ff5d6c";
+      ctx.arc(x + r.x * sc, y + r.y * sc, 3.2, 0, Math.PI * 2);
+      ctx.fill();
+    });
       if (w.bunnyGone !== bunnyPos(w.map).hop) {
       const bun = bunnyPos(w.map);
       ctx.beginPath();
