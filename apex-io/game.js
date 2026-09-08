@@ -691,6 +691,7 @@
       matchTrees: 0,
       bounty: null,
       emoteUntil: 0,
+      bunnyGone: -1,
     };
     if (state.meta.hotFang) {
       player.bounty = true;
