@@ -2268,6 +2268,7 @@
         }
         toast("Jungle: " + ((j && j.who) ? j.who.join(", ") : state.playerName));
         startMatch();
+        window.apexRoom = "jungle";
       })
       .catch(() => {
         toast("Den server not reached — local pit");
@@ -2342,6 +2343,10 @@
     pushChat("den", state.playerName + " accepted " + from + " · pot " + state.challengePot + " XRP.", true);
     hideChalBanner();
     toast("Private 1v1 vs " + from);
+    window.apexRoom = "duel-" + [state.playerName, from].sort().join("-");
+    if (window.apexSock && window.apexSock.readyState === 1) {
+      window.apexSock.send(JSON.stringify({ t: "name", name: state.playerName, room: window.apexRoom }));
+    }
     startMatch({ duel: { name: from, amt } });
   };
   if (chalNo) chalNo.onclick = () => {
@@ -2810,7 +2815,7 @@
     const sock = new WebSocket("wss://apex-xrp-server-production.up.railway.app");
     window.apexSock = sock;
     sock.onopen = () => {
-      sock.send(JSON.stringify({ t: "name", name: state.playerName }));
+        sock.send(JSON.stringify({ t: "name", name: state.playerName, room: window.apexRoom || "jungle" }));
     };
     sock.onmessage = (ev) => {
       try {
