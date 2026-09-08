@@ -300,6 +300,13 @@
       value: 0,
     };
   }
+    function bunnyPos(map) {
+    const hop = Math.floor(Date.now() / 20000);
+    const a = foodSpot(map, 900 + hop);
+    const b = foodSpot(map, 901 + hop);
+    const u = (Date.now() % 20000) / 20000;
+    return { x: a.x + (b.x - a.x) * u, y: a.y + (b.y - a.y) * u, hop };
+  }
   function hitTree(x, y, trees, pad) {
     for (const t of trees) {
       const dx = x - t.x, dy = y - t.y;
