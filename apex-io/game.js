@@ -1286,21 +1286,12 @@
       const r = rem[nm];
       if (!r || now - r.at > 3000) return;
       const trail = r.trail || [{ x: r.x, y: r.y }];
-      if (!r.shown || r.shown.length !== trail.length) {
-        r.shown = trail.map((p) => ({ x: p.x, y: p.y }));
-      } else {
-        for (let i = 0; i < trail.length; i++) {
-          r.shown[i].x += (trail[i].x - r.shown[i].x) * 0.5;
-          r.shown[i].y += (trail[i].y - r.shown[i].y) * 0.5;
-        }
-      }
-      const vis = r.shown;
-      if (vis.length > 1) {
+      if (trail.length > 1) {
         const pa = (r.skin && r.skin.a) || "#e7c56a";
         const pb = (r.skin && r.skin.b) || pa;
-        const neck = vis[Math.min(4, vis.length - 1)];
+        const neck = trail[Math.min(4, trail.length - 1)];
         const fake = {
-          pts: vis,
+          pts: trail,
           radius: 7,
           colorA: pa,
           colorB: pb,
@@ -1309,11 +1300,12 @@
           horn: (r.skin && r.skin.h) || "none",
           tail: (r.skin && r.skin.t) || "none",
           eyes: (r.skin && r.skin.e) || "#f5e6a8",
-          dir: Math.atan2(vis[0].y - neck.y, vis[0].x - neck.x),
+          dir: Math.atan2(trail[0].y - neck.y, trail[0].x - neck.x),
           name: nm,
         };
         drawSnake(fake, cam);
       }
+    });
     });
     if (state.mode === "killcam" && w.kcPeers) {
       w._kcShown = w._kcShown || {};
