@@ -2347,6 +2347,7 @@
     window.apexRoom = "duel-" + [state.playerName, from].sort().join("-");
     if (window.apexSock && window.apexSock.readyState === 1) {
       window.apexSock.send(JSON.stringify({ t: "name", name: state.playerName, room: window.apexRoom }));
+      window.apexSock.send(JSON.stringify({ t: "chalok", from: state.playerName, to: from, amt: amt }));
     }
     startMatch({ duel: { name: from, amt } });
   };
