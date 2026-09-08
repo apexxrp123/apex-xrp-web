@@ -1444,6 +1444,13 @@
       ctx.arc(px, py, s.isPlayer ? 4.5 : 3.2, 0, Math.PI * 2);
       ctx.fill();
     }
+      if (w.bunnyGone !== bunnyPos(w.map).hop) {
+      const bun = bunnyPos(w.map);
+      ctx.beginPath();
+      ctx.fillStyle = "#fff6d2";
+      ctx.arc(x + bun.x * sc, y + bun.y * sc, 3.4, 0, Math.PI * 2);
+      ctx.fill();
+    }
     ctx.fillStyle = "#e8f0ea";
     ctx.font = "10px Trebuchet MS";
     ctx.textAlign = "left";
