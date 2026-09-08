@@ -627,27 +627,8 @@
     });
 
     const snakes = [player];
-    if (duel) {
-      const pal = PRESET_SKINS[1];
-      const rival = makeSnake({
-        id: "rival",
-        name: duel.name,
-        x: map * 0.72,
-        y: map * 0.28,
-        len: 20,
-        a: pal.a,
-        b: pal.b,
-        pattern: "diamond",
-        species: "mamba",
-        stake: duel.amt,
-        speed: 2.45,
-      });
-      rival.isRival = true;
-      rival.bounty = true;
-      rival.hotFang = true;
-      player.bounty = true;
-      snakes.push(rival);
-    } else for (let i = 0; i < state.tier.bots; i++) {
+    if (!duel) for (let i = 0; i < state.tier.bots; i++) { 
+    else for (let i = 0; i < state.tier.bots; i++) {
       const pal = PRESET_SKINS[i % PRESET_SKINS.length];
       snakes.push(
         makeSnake({
