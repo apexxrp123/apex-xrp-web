@@ -2827,6 +2827,10 @@
           });
           toast(m.name + " shed gold");
         }
+        if (m && m.t === "prey" && state.world) {
+          state.world.bunnyGone = Number(m.hop) || 0;
+          toast((m.name || "Hunter") + " ate the rabbit");
+        }
         if (m && m.t === "pos" && m.name && m.name !== state.playerName) {
           window.apexPeers = window.apexPeers || {};
           const trail = Array.isArray(m.pts) && m.pts.length ? m.pts : [{ x: m.x, y: m.y }];
