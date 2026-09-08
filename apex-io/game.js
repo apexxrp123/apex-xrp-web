@@ -924,7 +924,7 @@
 
     if (you.alive) {
       if (!w.tape) w.tape = [];
-      if ((w._tick || 0) % 2 === 0) {
+      if (true) {
         w.tape.push({
           cam: { x: w.cam.x, y: w.cam.y },
           you: you.pts.map((p) => ({ x: p.x, y: p.y })),
@@ -1361,8 +1361,6 @@
       state.mode = "dead";
       return;
     }
-    kc.hold = (kc.hold || 0) + 1;
-    if (kc.hold % 2 === 1) return;
     const frame = kc.frames[kc.i];
     kc.i += 1;
     if (!frame) {
@@ -2893,7 +2891,7 @@
           e: state.skin.eyes,
         },
       }));
-    }, 50);
+    }, 33);
   } catch (_) {}
   
   refreshPrice();
