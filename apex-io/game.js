@@ -660,17 +660,9 @@
     }
 
     const food = [];
-      for (let i = 0; i < 280; i++) food.push(foodSpot(map, i));
+    for (let i = 0; i < 280; i++) food.push(foodSpot(map, i));
+
     const trees = plantTrees(map, TRAILER ? Math.min(12, state.tier.trees || 0) : (state.tier.trees || 0));
-    state.world = {
-      map,
-      biome: state.tier.biome,
-      trees,
-      snakes,
-      food,
-      cam: { x: player.pts[0].x, y: player.pts[0].y },
-      prizePool: duel ? +(duel.amt * 2).toFixed(4) : stake + (state.challengePot || 0),
-      duel: duel ? duel.name : null,
       dropped: [],
       tape: [],
       grace: true,
