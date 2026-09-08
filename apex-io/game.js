@@ -1689,7 +1689,13 @@
     overlay.classList.remove("hidden");
     const box = document.getElementById("modal-body");
     const expLine = money && money.exp ? ` +${money.exp} EXP (${escapeHtml(rankOf(state.exp).cur.name)})` : "";
-    if (win) {
+    const wasDuel = !!(state.world && state.world.duel);
+    if (wasDuel) {
+      box.innerHTML = `
+        <h3>${win ? "1v1 over" : "You were dropped"}</h3>
+        <p>${win ? "Pot settled. Back to the dens." : "1v1 is over. Back to the dens."}${expLine}</p>
+        <button class="btn primary" id="again">Back to dens</button>`;
+    } else if (win) {
       box.innerHTML = `
         <h3>Shed and leave</h3>
         <p>Gross ${money.gross} XRP (${usd(money.gross)}). Fee ${money.fee} XRP to treasury. You keep ${money.net} XRP.${expLine}</p>
