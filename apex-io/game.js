@@ -1273,6 +1273,17 @@
 
     const sx = canvas.width / 2 - cam.x;
     const sy = canvas.height / 2 - cam.y;
+      if (w.bunnyGone !== bunnyPos(w.map).hop) {
+      const bun = bunnyPos(w.map);
+      const bx = bun.x + sx, by = bun.y + sy;
+      ctx.fillStyle = "#f3efe4";
+      ctx.beginPath();
+      ctx.ellipse(bx, by, 8, 6, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#d9cbb3";
+      ctx.fillRect(bx - 4, by - 14, 3, 10);
+      ctx.fillRect(bx + 1, by - 14, 3, 10);
+    }
     for (const f of w.food) {
       f.value = 0;
       f.c = "#9fe7c2";
