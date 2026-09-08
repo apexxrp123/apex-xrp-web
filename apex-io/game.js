@@ -1521,7 +1521,7 @@
     save();
     renderChat();
   }
-  function findHunter(name) {
+    function findHunter(name) {
     const key = nameKey(name);
     if (!key) return null;
     if (nameKey(state.playerName) === key) return { name: state.playerName, self: true };
@@ -1529,7 +1529,7 @@
     if (row) return { name: row.name, self: false, row };
     const bot = BOT_NAMES.find((n) => nameKey(n) === key);
     if (bot) return { name: bot, self: false, row: null };
-    return null;
+    return { name: cleanName(name), self: false, row: null };
   }
   function handleTipCommand(raw) {
     const text = String(raw || "").trim();
