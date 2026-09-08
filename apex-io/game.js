@@ -1325,8 +1325,8 @@
           vis = trail.map((p) => ({ x: p.x, y: p.y }));
         } else {
           for (let i = 0; i < trail.length; i++) {
-            vis[i].x += (trail[i].x - vis[i].x) * 0.28;
-            vis[i].y += (trail[i].y - vis[i].y) * 0.28;
+            vis[i].x += (trail[i].x - vis[i].x) * 0.6;
+            vis[i].y += (trail[i].y - vis[i].y) * 0.6;
           }
         }
         w._kcShown[peer.name] = vis;
