@@ -1308,11 +1308,21 @@
       const r = rem[nm];
       if (!r || now - r.at > 3000) return;
       const trail = r.trail || [{ x: r.x, y: r.y }];
-      if (trail.length > 1) {
+      if (!r.shown || r.shown.length !== trail.length) {
+        r.shown = trail.map((p) => ({ x: p.x, y: p.y }));
+      } else {
+        for (let i = 0; i < trail.length; i++) {
+          r.shown[i].x += (trail[i].x - r.shown[i].x) * 0.28;
+          r.shown[i].y += (trail[i].y - r.shown[i].y) * 0.28;
+        }
+      }
+      const vis = r.shown;
+      if (vis.length > 1) {
         const pa = (r.skin && r.skin.a) || "#e7c56a";
         const pb = (r.skin && r.skin.b) || pa;
+        const neck = vis[Math.min(4, vis.length - 1)];
         const fake = {
-          pts: trail,
+          pts: vis,
           radius: 7,
           colorA: pa,
           colorB: pb,
@@ -1321,7 +1331,7 @@
           horn: (r.skin && r.skin.h) || "none",
           tail: (r.skin && r.skin.t) || "none",
           eyes: (r.skin && r.skin.e) || "#f5e6a8",
-          dir: Math.atan2(trail[0].y - trail[1].y, trail[0].x - trail[1].x),
+          dir: Math.atan2(vis[0].y - neck.y, vis[0].x - neck.x),
           name: nm,
         };
         drawSnake(fake, cam);
@@ -2834,7 +2844,8 @@
         if (m && m.t === "pos" && m.name && m.name !== state.playerName) {
           window.apexPeers = window.apexPeers || {};
           const trail = Array.isArray(m.pts) && m.pts.length ? m.pts : [{ x: m.x, y: m.y }];
-          window.apexPeers[m.name] = { x: m.x, y: m.y, at: Date.now(), trail: trail, skin: m.skin || null };
+          const prev = window.apexPeers[m.name] || {};
+          window.apexPeers[m.name] = { x: m.x, y: m.y, at: Date.now(), trail: trail, shown: prev.shown || trail, skin: m.skin || null };
         }
         if (m && m.t === "peers" && m.who) {
           pushChat("den", "Sockets: " + m.who.join(", "), true);
