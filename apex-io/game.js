@@ -2876,7 +2876,6 @@
         const q = body[headN + Math.floor((i / extra) * (tail - 1))] || body[body.length - 1];
         pts.push({ x: Math.round(q.x), y: Math.round(q.y) });
       }
-      const prev = window.apexPeers[m.name] || {};
         window.apexSock.send(JSON.stringify({
         t: "pos",
         name: state.playerName,
