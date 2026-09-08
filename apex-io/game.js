@@ -2848,10 +2848,17 @@
       const p = state.world.snakes[0].pts[0];
       if (!p) return;
       const you = state.world.snakes[0];
-      const n = Math.min(40, you.pts.length);
       const pts = [];
-      for (let i = 0; i < n; i++) {
-        const q = you.pts[Math.floor((i / Math.max(1, n - 1)) * (you.pts.length - 1))] || you.pts[0];
+      const body = you.pts;
+      const headN = Math.min(8, body.length);
+      for (let i = 0; i < headN; i++) {
+        const q = body[i];
+        pts.push({ x: Math.round(q.x), y: Math.round(q.y) });
+      }
+      const tail = body.length - headN;
+      const extra = Math.min(32, tail);
+      for (let i = 1; i <= extra; i++) {
+        const q = body[headN + Math.floor((i / extra) * (tail - 1))] || body[body.length - 1];
         pts.push({ x: Math.round(q.x), y: Math.round(q.y) });
       }
       window.apexSock.send(JSON.stringify({
