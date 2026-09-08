@@ -839,12 +839,6 @@
     let refill = 0;
     while (w.food.length < 280 && refill < 8) {
         w.food.push(foodSpot(w.map, w.food.length + refill + 280));
-        x: Math.random() * w.map,
-        y: Math.random() * w.map,
-        r: 3 + Math.random() * 2,
-        c: "#9fe7c2",
-        value: 0,
-      });
       refill++;
     }
 
