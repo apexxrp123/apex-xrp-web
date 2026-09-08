@@ -628,7 +628,6 @@
 
     const snakes = [player];
     if (!duel) for (let i = 0; i < state.tier.bots; i++) { 
-    else for (let i = 0; i < state.tier.bots; i++) {
       const pal = PRESET_SKINS[i % PRESET_SKINS.length];
       snakes.push(
         makeSnake({
