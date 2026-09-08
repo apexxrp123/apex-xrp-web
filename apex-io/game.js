@@ -677,7 +677,7 @@
       snakes,
       food,
       cam: { x: player.pts[0].x, y: player.pts[0].y },
-      prizePool: duel ? +(duel.amt * 2).toFixed(4) : stake + (state.challengePot || 0),
+      prizePool: stake,
       duel: duel ? duel.name : null,
       dropped: [],
       tape: [],
@@ -876,7 +876,6 @@
           killSnake(a, w);
           a.death = "head";
           if (b.isPlayer) {
-            w.prizePool = +(w.prizePool + a.stake * 0.9 + (a.bounty ? 1 : 0)).toFixed(4);
             state.matchKills += 1;
           }
           continue;
@@ -901,7 +900,6 @@
             if (b.isPlayer) {
               let add = a.stake * 0.9;
               if (a.bounty) add += 1;
-              w.prizePool = +(w.prizePool + add).toFixed(4);
               state.matchKills += 1;
               if (a.bounty) {
                 pushChat("den", "Bounty claimed: " + a.name, true);
