@@ -2877,8 +2877,23 @@
         pts.push({ x: Math.round(q.x), y: Math.round(q.y) });
       }
       const prev = window.apexPeers[m.name] || {};
-          if (prev.seq && m.seq && m.seq <= prev.seq) return;
-          window.apexPeers[m.name] = { x: m.x, y: m.y, at: Date.now(), seq: m.seq || 0, trail: trail, skin: m.skin || null };
+        window.apexSock.send(JSON.stringify({
+        t: "pos",
+        name: state.playerName,
+        x: Math.round(p.x),
+        y: Math.round(p.y),
+        seq: (window.apexSeq = (window.apexSeq || 0) + 1),
+        pts: pts,
+        skin: {
+          a: state.skin.a,
+          b: state.skin.b,
+          p: state.skin.pattern,
+          sp: state.skin.species,
+          h: state.skin.horn,
+          t: state.skin.tail,
+          e: state.skin.eyes,
+        },
+      }));
     }, 16);
   } catch (_) {}
   
