@@ -662,7 +662,7 @@
     const food = [];
     for (let i = 0; i < 280; i++) food.push(foodSpot(map, i));
 
-        const trees = plantTrees(map, TRAILER ? Math.min(12, state.tier.trees || 0) : (state.tier.trees || 0));
+    const trees = plantTrees(map, TRAILER ? Math.min(12, state.tier.trees || 0) : (state.tier.trees || 0));
     state.world = {
       map,
       biome: state.tier.biome,
