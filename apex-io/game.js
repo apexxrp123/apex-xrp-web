@@ -300,7 +300,7 @@
       value: 0,
     };
   }
-    function bunnyPos(map) {
+  function bunnyPos(map) {
     const hop = Math.floor(Date.now() / 20000);
     const a = foodSpot(map, 900 + hop);
     const b = foodSpot(map, 901 + hop);
