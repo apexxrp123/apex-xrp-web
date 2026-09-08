@@ -2325,9 +2325,6 @@
       window.apexSock.send(JSON.stringify({ t: "name", name: state.playerName, room: window.apexRoom }));
     }
     startMatch({ duel: { name: target.name, amt } });
-      if (state.mode === "play") return;
-      showChalBanner(target.name, amt);
-    }, 900);
   });
   const chalYes = document.getElementById("chal-yes");
   const chalNo = document.getElementById("chal-no");
