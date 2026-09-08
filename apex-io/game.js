@@ -1290,8 +1290,8 @@
         r.shown = trail.map((p) => ({ x: p.x, y: p.y }));
       } else {
         for (let i = 0; i < trail.length; i++) {
-          r.shown[i].x += (trail[i].x - r.shown[i].x) * 0.28;
-          r.shown[i].y += (trail[i].y - r.shown[i].y) * 0.28;
+          r.shown[i].x += (trail[i].x - r.shown[i].x) * 0.5;
+          r.shown[i].y += (trail[i].y - r.shown[i].y) * 0.5;
         }
       }
       const vis = r.shown;
