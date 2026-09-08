@@ -2848,7 +2848,8 @@
           window.apexPeers = window.apexPeers || {};
           const trail = Array.isArray(m.pts) && m.pts.length ? m.pts : [{ x: m.x, y: m.y }];
           const prev = window.apexPeers[m.name] || {};
-          window.apexPeers[m.name] = { x: m.x, y: m.y, at: Date.now(), trail: trail, shown: prev.shown || trail, skin: m.skin || null };
+          if (prev.seq && m.seq && m.seq <= prev.seq) return;
+          window.apexPeers[m.name] = { x: m.x, y: m.y, at: Date.now(), seq: m.seq || 0, trail: trail, skin: m.skin || null };
         }
         if (m && m.t === "peers" && m.who) {
           pushChat("den", "Sockets: " + m.who.join(", "), true);
@@ -2875,22 +2876,9 @@
         const q = body[headN + Math.floor((i / extra) * (tail - 1))] || body[body.length - 1];
         pts.push({ x: Math.round(q.x), y: Math.round(q.y) });
       }
-      window.apexSock.send(JSON.stringify({
-        t: "pos",
-        name: state.playerName,
-        x: Math.round(p.x),
-        y: Math.round(p.y),
-        pts: pts,
-        skin: {
-          a: state.skin.a,
-          b: state.skin.b,
-          p: state.skin.pattern,
-          sp: state.skin.species,
-          h: state.skin.horn,
-          t: state.skin.tail,
-          e: state.skin.eyes,
-        },
-      }));
+      const prev = window.apexPeers[m.name] || {};
+          if (prev.seq && m.seq && m.seq <= prev.seq) return;
+          window.apexPeers[m.name] = { x: m.x, y: m.y, at: Date.now(), seq: m.seq || 0, trail: trail, skin: m.skin || null };
     }, 16);
   } catch (_) {}
   
