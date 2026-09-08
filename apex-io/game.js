@@ -2847,6 +2847,10 @@
           state.world.bunnyGone = Number(m.hop) || 0;
           toast((m.name || "Hunter") + " ate the rabbit");
         }
+        if (m && m.t === "chal" && nameKey(m.to) === nameKey(state.playerName)) {
+          showChalBanner(m.from || "Hunter", Number(m.amt) || 1);
+          toast("Challenged by " + (m.from || "Hunter"));
+        }
         if (m && m.t === "pos" && m.name && m.name !== state.playerName) {
           window.apexPeers = window.apexPeers || {};
           const trail = Array.isArray(m.pts) && m.pts.length ? m.pts : [{ x: m.x, y: m.y }];
