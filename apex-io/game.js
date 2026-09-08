@@ -2852,6 +2852,13 @@
           showChalBanner(m.from || "Hunter", Number(m.amt) || 1);
           toast("Challenged by " + (m.from || "Hunter"));
         }
+        if (m && m.t === "chalok" && nameKey(m.to) === nameKey(state.playerName)) {
+          window.apexRoom = "duel-" + [state.playerName, m.from].sort().join("-");
+          if (window.apexSock && window.apexSock.readyState === 1) {
+            window.apexSock.send(JSON.stringify({ t: "name", name: state.playerName, room: window.apexRoom }));
+          }
+          startMatch({ duel: { name: m.from, amt: Number(m.amt) || 1 } });
+        }
         if (m && m.t === "pos" && m.name && m.name !== state.playerName) {
           window.apexPeers = window.apexPeers || {};
           const trail = Array.isArray(m.pts) && m.pts.length ? m.pts : [{ x: m.x, y: m.y }];
