@@ -836,17 +836,11 @@
     }
     eatFrom(w.food, false);
     eatFrom(w.dropped, true);
-    let refill = 0;
+        let refill = 0;
     while (w.food.length < 280 && refill < 8) {
-        w.food.push(foodSpot(w.map, w.food.length + refill + 280));
+      w.food.push(foodSpot(w.map, w.food.length + refill + 280));
       refill++;
     }
-
-    for (const a of w.snakes) {
-      if (!a.alive) continue;
-      for (const b of w.snakes) {
-        if (a === b || !b.alive) continue;
-        if (w.grace && a.isPlayer) continue;
         const hdx = a.pts[0].x - b.pts[0].x;
         const hdy = a.pts[0].y - b.pts[0].y;
         const headR = (a.radius + (b.radius || 6)) * 0.58;
