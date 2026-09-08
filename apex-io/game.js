@@ -1680,7 +1680,9 @@
     if (wasDuel) {
       box.innerHTML = `
         <h3>${win ? "1v1 over" : "You were dropped"}</h3>
-        <p>${win ? "Pot settled. Back to the dens." : "1v1 is over. Back to the dens."}${expLine}</p>
+          <p>${win && money && money.net != null
+          ? `Gross ${money.gross} XRP (${usd(money.gross)}). Fee ${money.fee} XRP to treasury (10%). You keep ${money.net} XRP.`
+          : (win ? "Pot settled. Back to the dens." : "1v1 is over. Back to the dens.")}${expLine}</p>
         <button class="btn primary" id="again">Back to dens</button>`;
     } else if (win) {
       box.innerHTML = `
