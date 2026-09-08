@@ -1306,7 +1306,6 @@
         drawSnake(fake, cam);
       }
     });
-    });
       if (state.mode === "killcam" && w.kcPeers) {
       w.kcPeers.forEach((peer) => {
         const trail = peer.pts || [];
