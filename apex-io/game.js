@@ -1685,7 +1685,9 @@
     } else if (win) {
       box.innerHTML = `
         <h3>Shed and leave</h3>
-        <p>Gross ${money.gross} XRP (${usd(money.gross)}). Fee ${money.fee} XRP to treasury. You keep ${money.net} XRP.${expLine}</p>
+        <p>${win && money && money.net != null
+          ? `Gross ${money.gross} XRP (${usd(money.gross)}). Fee ${money.fee} XRP to treasury (10%). You keep ${money.net} XRP.`
+          : (win ? "Pot settled. Back to the dens." : "1v1 is over. Back to the dens.")}${expLine}</p>
         <button class="btn primary" id="strike">Strike again</button>
         <button class="btn" id="again">Back to dens</button>`;
     } else {
