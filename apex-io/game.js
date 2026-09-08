@@ -2848,7 +2848,12 @@
       const p = state.world.snakes[0].pts[0];
       if (!p) return;
       const you = state.world.snakes[0];
-      const pts = you.pts.filter((_, i) => i % 2 === 0).slice(0, 24).map((q) => ({ x: Math.round(q.x), y: Math.round(q.y) }));
+      const n = Math.min(40, you.pts.length);
+      const pts = [];
+      for (let i = 0; i < n; i++) {
+        const q = you.pts[Math.floor((i / Math.max(1, n - 1)) * (you.pts.length - 1))] || you.pts[0];
+        pts.push({ x: Math.round(q.x), y: Math.round(q.y) });
+      }
       window.apexSock.send(JSON.stringify({
         t: "pos",
         name: state.playerName,
