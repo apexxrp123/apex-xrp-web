@@ -2891,7 +2891,7 @@
           e: state.skin.eyes,
         },
       }));
-    }, 33);
+    }, 16);
   } catch (_) {}
   
   refreshPrice();
