@@ -661,15 +661,6 @@
 
     const food = [];
       for (let i = 0; i < 280; i++) food.push(foodSpot(map, i));
-      food.push({
-        x: Math.random() * map,
-        y: Math.random() * map,
-        r: 3 + Math.random() * 2,
-        c: "#9fe7c2",
-        value: 0,
-      });
-    }
-
     const trees = plantTrees(map, TRAILER ? Math.min(12, state.tier.trees || 0) : (state.tier.trees || 0));
     state.world = {
       map,
