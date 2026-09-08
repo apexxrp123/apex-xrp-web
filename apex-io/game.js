@@ -2320,7 +2320,11 @@
     }
     pushChat("den", state.playerName + " challenged " + target.name + " for " + amt + " XRP.", true);
     toast("Challenge sent to " + target.name);
-    setTimeout(() => {
+    window.apexRoom = "duel-" + [state.playerName, target.name].sort().join("-");
+    if (window.apexSock && window.apexSock.readyState === 1) {
+      window.apexSock.send(JSON.stringify({ t: "name", name: state.playerName, room: window.apexRoom }));
+    }
+    startMatch({ duel: { name: target.name, amt } });
       if (state.mode === "play") return;
       showChalBanner(target.name, amt);
     }, 900);
