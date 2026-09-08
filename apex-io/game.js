@@ -844,6 +844,21 @@
     }
     eatFrom(w.food, false);
     eatFrom(w.dropped, true);
+      if (you && you.alive && you.isPlayer && !w.watch) {
+      const bun = bunnyPos(w.map);
+      if (w.bunnyGone !== bun.hop) {
+        const dx = you.pts[0].x - bun.x, dy = you.pts[0].y - bun.y;
+        if (dx * dx + dy * dy < 26 * 26) {
+          w.bunnyGone = bun.hop;
+          const tail = you.pts[you.pts.length - 1];
+          for (let k = 0; k < 18; k++) you.pts.push({ x: tail.x, y: tail.y });
+          toast("Rabbit — +18 length");
+          if (window.apexSock && window.apexSock.readyState === 1) {
+            window.apexSock.send(JSON.stringify({ t: "prey", hop: bun.hop, name: state.playerName }));
+          }
+        }
+      }
+    }
         let refill = 0;
     while (w.food.length < 280 && refill < 8) {
       w.food.push(foodSpot(w.map, w.food.length + refill + 280));
