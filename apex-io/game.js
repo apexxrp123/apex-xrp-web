@@ -2702,18 +2702,18 @@
           }
           const deep = data.deepLink || ("https://xumm.app/sign/" + data.uuid);
           const deepHttps = deep.indexOf("http") === 0 ? deep : ("https://xumm.app/sign/" + data.uuid);
-          const deepApp = "xumm://xumm.app/sign/" + data.uuid;
+          const deepApp = deepHttps; // https — xumm:// blank on desktop
           const openA = document.getElementById("xaman-open");
           const deepA = document.getElementById("xaman-deep");
           if (openA) {
             openA.href = deepApp;
-            openA.target = "_blank";
+            openA.removeAttribute("target");
             openA.rel = "noopener noreferrer";
             openA.removeAttribute("onclick");
           }
           if (deepA) {
             deepA.href = deepHttps;
-            deepA.target = "_blank";
+            deepA.removeAttribute("target");
             deepA.rel = "noopener noreferrer";
             deepA.removeAttribute("onclick");
           }
