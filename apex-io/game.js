@@ -1817,9 +1817,10 @@
     box.classList.remove("hidden");
   }
 
-  function cashOut() {
+  async function cashOut() {
     const w = state.world;
     if (!w || state.mode !== "play" || !w.snakes[0].alive || w.watch) return;
+    if (w._cashOutBusy) return;
     if (w.allIn && w.snakes[0].pts.length < 28) {
       toast("All-in coil: grow to 28 first.");
       return;
@@ -1827,6 +1828,51 @@
     const gross = Math.round((w.prizePool || 0) * 100) / 100;
     const fee = +(gross * FEE_RATE).toFixed(4);
     const net = +(gross - fee).toFixed(4);
+    if (!(gross > 0) || !(net > 0)) {
+      toast("Nothing to cash out.");
+      return;
+    }
+
+    const useLedger = effectiveNetwork() === "testnet" && hasTestnetXaman();
+    let netTxHash = null;
+    let feeTxHash = null;
+
+    if (useLedger) {
+      if (!state.wallet || !state.wallet.address) {
+        toast("Link Xaman (Testnet) before cash-out.");
+        return;
+      }
+      w._cashOutBusy = true;
+      toast("Sending cash-out on Testnet…");
+      try {
+        const res = await fetch(DEN_SERVER + "/den/cashout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            hunter: state.wallet.address,
+            treasury: OWNER_TREASURY,
+            grossXrp: gross,
+            netXrp: net,
+            feeXrp: fee,
+            lockTx: state.lastLockTx || null,
+          }),
+        });
+        const body = await res.json().catch(() => ({}));
+        if (!body || !body.ok) {
+          toast((body && body.reason) || "Cash-out failed");
+          w._cashOutBusy = false;
+          return;
+        }
+        netTxHash = body.netTxHash;
+        feeTxHash = body.feeTxHash;
+      } catch (e) {
+        toast("Could not reach den server for cash-out.");
+        w._cashOutBusy = false;
+        return;
+      }
+      w._cashOutBusy = false;
+    }
+
     state.balanceXrp = +(state.balanceXrp + net).toFixed(6);
     state.feePaidTotal = +(state.feePaidTotal + fee).toFixed(4);
     state.meta.weekFees = +(state.meta.weekFees + fee).toFixed(4);
@@ -1839,9 +1885,13 @@
     creditContract("kills", state.matchKills);
     maybeDropSkin(true, net, w);
     state.meta.seasonExp += 15;
-    
-    const rx = "sim:" + Math.random().toString(16).slice(2, 10);
-    pushChat("den", "Cash-out receipt " + rx + " · " + net + " XRP", true);
+
+    if (useLedger && netTxHash && feeTxHash) {
+      pushChat("den", "Cash-out net " + netTxHash + " · fee " + feeTxHash + " · " + net + " XRP", true);
+    } else {
+      const rx = "sim:" + Math.random().toString(16).slice(2, 10);
+      pushChat("den", "Cash-out receipt " + rx + " · " + net + " XRP", true);
+    }
     state.sheds = [{ name: state.playerName, xrp: net, at: Date.now() }].concat(state.sheds || []).slice(0, 30);
     renderSheds();
     const row = state.board.find((b) => b.name === state.playerName);

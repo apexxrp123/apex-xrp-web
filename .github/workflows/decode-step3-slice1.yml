@@ -1,0 +1,39 @@
+name: decode-step3-slice1
+on:
+  push:
+    branches: [step3-slice1-cashout]
+    paths:
+      - "apex-io/_s3s1_b64/**"
+      - ".github/workflows/decode-step3-slice1.yml"
+  workflow_dispatch:
+jobs:
+  decode:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: step3-slice1-cashout
+      - name: Assemble decode and commit game.js
+        run: |
+          set -euo pipefail
+          cat apex-io/_s3s1_b64/p*.txt > /tmp/game.b64
+          python3 - <<'PY2'
+          import zlib, base64, hashlib, pathlib
+          b = pathlib.Path("/tmp/game.b64").read_text().strip()
+          data = zlib.decompress(base64.b64decode(b))
+          expected = "df3c14e5f590a006b9522bc5dac5b2e197af9fff7944e42111211b1abe5e8612"
+          got = hashlib.sha256(data).hexdigest()
+          if got != expected:
+              raise SystemExit(f"sha256 mismatch: {got} != {expected}")
+          pathlib.Path("apex-io/game.js").write_bytes(data)
+          print("wrote", len(data), "bytes", got)
+          PY2
+          rm -rf apex-io/_s3s1_b64
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet && echo "no change" && exit 0
+          git commit -m "Step 3 slice 1: Testnet cashOut ledger send"
+          git push
