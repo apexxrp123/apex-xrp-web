@@ -1,0 +1,35 @@
+name: restore-good-game
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/restore-good-game.yml"
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Restore apex-io from pre-kill-intro good commit
+        run: |
+          set -euo pipefail
+          GOOD=192e9905b9ab9ef7ce5ce42c69104822f50c552e
+          git show "$GOOD:apex-io/index.html" > apex-io/index.html
+          git show "$GOOD:apex-io/styles.css" > apex-io/styles.css
+          git show "$GOOD:apex-io/game.js" > apex-io/game.js
+          # sanity
+          grep -q 'id="intro"' apex-io/index.html
+          grep -q 'intro-vid' apex-io/index.html
+          grep -q 'onstalled' apex-io/game.js
+          grep -q 'visit-count' apex-io/index.html
+          ! grep -q 'apex-kill-intro' apex-io/index.html
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apex-io/index.html apex-io/styles.css apex-io/game.js
+          git diff --cached --quiet && echo "already good" && exit 0
+          git commit -m "Restore game to known-good pre-kill-intro build ($GOOD)"
+          git push
