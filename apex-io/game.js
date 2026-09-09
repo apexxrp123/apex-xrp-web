@@ -55,7 +55,8 @@
   const OWNER_TREASURY = "";
   const OWNER_KEY = "";
   const XAMAN_APP_URL = "https://xaman.app";
-  const XUMM_API_KEY = "";
+  const XUMM_API_KEY = ""; // never put secrets in Pages; SignIn uses DEN_SERVER
+  const DEN_SERVER = "https://apex-xrp-server-production.up.railway.app";
   const SLOT_WINS_TO_TREASURY = false;
   const RANKS = [
     { name: "Hatchling", exp: 0 },
@@ -2643,7 +2644,9 @@
     }
     if (state.wallet) {
       disc.style.display = "block";
-      status.textContent = `${state.wallet.name} · ${state.wallet.address.slice(0, 8)}…${state.wallet.address.slice(-5)} · session only, no mainnet send`;
+      status.textContent = state.wallet.network === "testnet"
+        ? `${state.wallet.name} · ${state.wallet.address.slice(0, 8)}…${state.wallet.address.slice(-5)} · testnet, no mainnet send`
+        : `${state.wallet.name} · ${state.wallet.address.slice(0, 8)}…${state.wallet.address.slice(-5)} · session only, no mainnet send`;
       document.getElementById("net-out").textContent = state.wallet.id;
     } else {
       disc.style.display = "none";
@@ -2656,32 +2659,92 @@
     overlay.classList.remove("hidden");
     const box = document.getElementById("modal-body");
     if (w.id === "xaman") {
+      let pollTimer = null;
+      const stopPoll = () => {
+        if (pollTimer) {
+          clearInterval(pollTimer);
+          pollTimer = null;
+        }
+      };
+      const closeModal = () => {
+        stopPoll();
+        overlay.classList.add("hidden");
+      };
       box.innerHTML = `
         <h3>Xaman</h3>
-        <p>Open Xaman, then paste the classic r-address for this session. Live dens will push a Xaman Sign payload (needs a Xumm API key on the server).</p>
+        <p>Scan in Xaman (Testnet). Mainnet accounts will be rejected.</p>
+        <p class="tiny" id="xaman-wait">Requesting SignIn…</p>
+        <div id="xaman-qr-wrap" style="text-align:center;margin:12px 0"></div>
         <p class="tiny"><a href="${XAMAN_APP_URL}" target="_blank" rel="noopener noreferrer">Open Xaman</a>
-        · <a href="https://xumm.app/detect" target="_blank" rel="noopener noreferrer">Detect app</a></p>
-        <input id="xaman-addr" type="text" placeholder="rYourXamanAddress..." style="width:100%;margin:10px 0" />
-        <button class="btn primary" id="wc-ok">Link Xaman</button>
+        · <a id="xaman-deep" href="#" target="_blank" rel="noopener noreferrer">Open sign link</a></p>
         <button class="btn ghost" id="wc-no">Cancel</button>`;
-      document.getElementById("wc-no").onclick = () => overlay.classList.add("hidden");
-      document.getElementById("wc-ok").onclick = () => {
-        const addr = (document.getElementById("xaman-addr").value || "").trim();
-        if (addr && !/^r[1-9A-HJ-NP-Za-km-z]{24,34}$/.test(addr)) {
-          toast("That is not a classic XRP address.");
-          return;
+      document.getElementById("wc-no").onclick = closeModal;
+
+      (async () => {
+        try {
+          const res = await fetch(DEN_SERVER + "/xaman/signin", { method: "POST" });
+          const data = await res.json().catch(() => ({}));
+          if (res.status === 503 || data.reason === "XUMM_API_KEY/SECRET not configured") {
+            toast("Xaman API keys must be set on the Railway server (XUMM_API_KEY / XUMM_API_SECRET).");
+            document.getElementById("xaman-wait").textContent = "Server missing Xaman API keys.";
+            return;
+          }
+          if (!res.ok || !data.uuid) {
+            toast(data.reason || "Could not start Xaman SignIn.");
+            document.getElementById("xaman-wait").textContent = data.reason || "SignIn failed to start.";
+            return;
+          }
+          const deep = data.deepLink || ("https://xumm.app/sign/" + data.uuid);
+          const deepA = document.getElementById("xaman-deep");
+          if (deepA) deepA.href = deep;
+          const wrap = document.getElementById("xaman-qr-wrap");
+          if (wrap && data.qr) {
+            wrap.innerHTML = `<img alt="Xaman QR" src="${data.qr}" style="max-width:220px;height:auto;background:#fff;padding:8px;border-radius:8px" />`;
+          }
+          document.getElementById("xaman-wait").textContent = "Waiting for Testnet SignIn in Xaman…";
+
+          let ticks = 0;
+          pollTimer = setInterval(async () => {
+            ticks += 1;
+            if (ticks > 90) {
+              stopPoll();
+              toast("Xaman sign-in cancelled");
+              document.getElementById("xaman-wait").textContent = "Timed out.";
+              return;
+            }
+            try {
+              const pr = await fetch(DEN_SERVER + "/xaman/signin/" + encodeURIComponent(data.uuid));
+              const body = await pr.json().catch(() => ({}));
+              if (body.pending) return;
+              if (body.ok && body.address) {
+                stopPoll();
+                state.wallet = {
+                  id: "xaman",
+                  name: "Xaman",
+                  address: body.address,
+                  network: "testnet",
+                  connectedAt: Date.now(),
+                };
+                save();
+                closeModal();
+                renderWallets();
+                toast("Xaman linked (Testnet). Mainnet send is off.");
+                return;
+              }
+              if (body.ok === false && body.reason && body.reason !== "waiting") {
+                stopPoll();
+                toast(body.reason);
+                document.getElementById("xaman-wait").textContent = body.reason;
+              }
+            } catch (_) {
+              /* keep polling briefly through blips */
+            }
+          }, 2000);
+        } catch (_) {
+          toast("Could not reach den server for Xaman SignIn.");
+          document.getElementById("xaman-wait").textContent = "Network error talking to den server.";
         }
-        state.wallet = {
-          id: "xaman",
-          name: "Xaman",
-          address: addr || mockClassicAddress("xaman" + state.playerName),
-          connectedAt: Date.now(),
-        };
-        save();
-        overlay.classList.add("hidden");
-        renderWallets();
-        toast("Xaman linked (session). Payloads sign in the app when the server is live.");
-      };
+      })();
       return;
     }
     if (w.id === "ledger") {

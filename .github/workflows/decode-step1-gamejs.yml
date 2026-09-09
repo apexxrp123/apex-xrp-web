@@ -1,0 +1,40 @@
+name: Decode Step1 game.js
+on:
+  push:
+    branches: [step1-xaman-wallet-ui]
+    paths:
+      - 'apex-io/_step1_b64/**'
+      - '.github/workflows/decode-step1-gamejs.yml'
+  workflow_dispatch:
+jobs:
+  decode:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: step1-xaman-wallet-ui
+      - name: Assemble and decode
+        run: |
+          set -euo pipefail
+          cat apex-io/_step1_b64/p*.txt > /tmp/game.b64
+          python3 - <<'PY2'
+          import base64, zlib, pathlib, hashlib
+          raw = pathlib.Path('/tmp/game.b64').read_text().strip()
+          data = zlib.decompress(base64.b64decode(raw))
+          expected = '2c76d646023b665614eea953dcba5d2b429bd7c26488c7a7d01fa1233c4e3dbb'
+          got = hashlib.sha256(data).hexdigest()
+          if got != expected:
+              raise SystemExit(f'sha256 mismatch: {got} != {expected}')
+          pathlib.Path('apex-io/game.js').write_bytes(data)
+          print('wrote', len(data), 'bytes', got)
+          PY2
+          rm -rf apex-io/_step1_b64
+          rm -f apex-io/_step1_game.js.zlib.b64 apex-io/_mcp_size_probe.txt apex-io/part0.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet && echo "No changes" && exit 0
+          git commit -m "Step 1: Xaman Testnet SignIn wallet UI (QR + poll)"
+          git push
