@@ -1,0 +1,39 @@
+name: awsnap-gpu
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/awsnap-gpu.yml"
+      - "apex-io/_patches/awsnap_gpu.py"
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lite assets + GPU first-paint strip
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          ffmpeg -y -i apex-io/lobby-bg.jpg -vf "scale=960:-2" -q:v 8 apex-io/lobby-bg-lite.jpg
+          ffmpeg -y -i apex-io/logo.png -vf "scale=128:128" -q:v 6 apex-io/logo-lite.jpg
+          ls -la apex-io/lobby-bg-lite.jpg apex-io/logo-lite.jpg
+          python3 apex-io/_patches/awsnap_gpu.py
+          grep -q hasTestnetXaman apex-io/game.js
+          grep -q cashOut apex-io/game.js
+          grep -q OWNER_TREASURY apex-io/game.js
+          ! grep -q intro.mp4 apex-io/index.html
+          grep -q lobby-bg-lite.jpg apex-io/styles.css || grep -q lobby-bg-lite.jpg apex-io/game.js
+          grep -q "backdrop-filter: none" apex-io/styles.css
+          test -f apex-io/intro-boot.js
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apex-io/index.html apex-io/styles.css apex-io/game.js \
+            apex-io/lobby-bg-lite.jpg apex-io/logo-lite.jpg apex-io/intro-boot.js \
+            apex-io/_patches/awsnap_gpu.py
+          git diff --cached --quiet && echo nochange && exit 0
+          git commit -m "Aw Snap: solid first paint, lite lobby/logo, no backdrop blur (Testnet untouched)"
+          git push
