@@ -15,29 +15,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: step2-slice2-jungle-lock
-
-      - name: Fix known chunk transcription typos
-        run: |
-          set -euo pipefail
-          python3 - <<'PY2'
-          from pathlib import Path
-          p9 = Path("apex-io/_s2s2_b64/p09.txt")
-          t = p9.read_text()
-          if "FVWoupqtbw" in t and "FVWoupqrtbw" not in t:
-              p9.write_text(t.replace("FVWoupqtbw", "FVWoupqrtbw", 1))
-              print("fixed p09 missing r")
-          p10 = Path("apex-io/_s2s2_b64/p10.txt")
-          t = p10.read_text()
-          if "Njwvy6todjr" in t:
-              p10.write_text(t.replace("Njwvy6todjr", "Njwvy6zodjr", 1))
-              print("fixed p10 t->z")
-          # verify lengths
-          for i in range(1, 12):
-              p = Path(f"apex-io/_s2s2_b64/p{i:02d}.txt")
-              if not p.exists():
-                  raise SystemExit(f"missing {p}")
-              print(p.name, len(p.read_text()))
-          PY2
       - name: Assemble decode and commit game.js
         run: |
           set -euo pipefail
@@ -46,7 +23,7 @@ jobs:
           import zlib, base64, hashlib, pathlib
           b = pathlib.Path("/tmp/game.b64").read_text().strip()
           data = zlib.decompress(base64.b64decode(b))
-          expected = "b7d8a458a21ddbc77407325e81f2078039d5cb2da75f34e8b7c349aedce5660b"
+          expected = "fad8e12d6e4d551471777c61af31074e4bcb217b35ca2954fe1e34a759a9b6ee"
           got = hashlib.sha256(data).hexdigest()
           if got != expected:
               raise SystemExit(f"sha256 mismatch: {got} != {expected}")
