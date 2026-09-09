@@ -2182,6 +2182,20 @@
     const n = m % 3;
     el.textContent = "Queue · Jungle " + j + " · River Coil " + r + " · Night Apex " + n;
   }
+
+  async function recordSiteVisit() {
+    const el = document.getElementById("visit-count");
+    try {
+      const res = await fetch(DEN_SERVER + "/stats/visit", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+      const body = await res.json().catch(() => ({}));
+      if (el && body && body.ok && typeof body.total === "number") {
+        el.textContent = "Visitors: " + body.total.toLocaleString();
+      }
+    } catch (_) {
+      if (el) el.textContent = "Visitors: —";
+    }
+  }
+
   function renderMeta() {
     const balEl = document.getElementById("bal");
     const balUsd = document.getElementById("bal-usd");
@@ -3531,6 +3545,7 @@
     setTimeout(finish, 9000);
   }
 
+  recordSiteVisit();
   runBiteIntro();
 
 })();
