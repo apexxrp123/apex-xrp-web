@@ -1,0 +1,40 @@
+name: fix-open-https-p01
+on:
+  push:
+    branches: [fix-open-xaman-https]
+    paths:
+      - ".github/workflows/fix-open-https-p01.yml"
+  workflow_dispatch:
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix-open-xaman-https
+      - name: Restore missing bytes in p01.txt
+        run: |
+          set -euo pipefail
+          python3 - <<'PY2'
+          from pathlib import Path
+          p = Path("apex-io/_open_https_b64/p01.txt")
+          t = p.read_text()
+          if "YNQZ9ESZ7u5Orxfa" in t and len(t) == 4000:
+              print("p01 already correct", len(t))
+          else:
+              t2 = t.replace("YNQZ7u5Orxfa", "YNQZ9ESZ7u5Orxfa", 1)
+              if len(t2) != 4000:
+                  raise SystemExit(f"unexpected len after fix: {len(t2)}")
+              if "YNQZ9ESZ7u5Orxfa" not in t2:
+                  raise SystemExit("fix marker missing after replace")
+              p.write_text(t2)
+              print("fixed p01", len(t), "->", len(t2))
+          PY2
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet && echo "no change" && exit 0
+          git commit -m "fix p01 zlib.b64 chunk (insert missing YNQZ9ESZ bytes)"
+          git push
