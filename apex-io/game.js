@@ -2683,6 +2683,8 @@
         <div id="xaman-qr-wrap" style="text-align:center;margin:12px 0"></div>
         <p class="tiny"><a id="xaman-open" href="#" rel="noopener noreferrer">Open Xaman</a>
         · <a id="xaman-deep" href="#" rel="noopener noreferrer">Open sign link</a></p>
+        <p class="tiny" id="xaman-url" style="word-break:break-all;margin-top:8px"></p>
+        <button class="btn ghost" id="xaman-copy" type="button" style="margin-top:6px">Copy sign URL</button>
         <button class="btn ghost" id="wc-no">Cancel</button>`;
       document.getElementById("wc-no").onclick = closeModal;
 
@@ -2702,20 +2704,36 @@
           }
           const deep = data.deepLink || ("https://xumm.app/sign/" + data.uuid);
           const deepHttps = deep.indexOf("http") === 0 ? deep : ("https://xumm.app/sign/" + data.uuid);
-          const deepApp = deepHttps; // https — xumm:// blank on desktop
+          const deepApp = "xumm://xumm.app/sign/" + data.uuid;
+          const isPhone = ("ontouchstart" in window) || (window.matchMedia && window.matchMedia("(max-width: 900px)").matches);
           const openA = document.getElementById("xaman-open");
           const deepA = document.getElementById("xaman-deep");
           if (openA) {
-            openA.href = deepApp;
-            openA.removeAttribute("target");
+            // Phone: xumm:// + _blank to hand off to the app without killing the game tab.
+            // Desktop: same-tab https (xumm:// is blank without a handler).
+            openA.href = isPhone ? deepApp : deepHttps;
+            if (isPhone) openA.target = "_blank";
+            else openA.removeAttribute("target");
             openA.rel = "noopener noreferrer";
             openA.removeAttribute("onclick");
           }
           if (deepA) {
             deepA.href = deepHttps;
-            deepA.removeAttribute("target");
+            deepA.target = "_blank";
             deepA.rel = "noopener noreferrer";
             deepA.removeAttribute("onclick");
+          }
+          const urlEl = document.getElementById("xaman-url");
+          if (urlEl) urlEl.textContent = deepHttps;
+          const copyBtn = document.getElementById("xaman-copy");
+          if (copyBtn) {
+            copyBtn.onclick = () => {
+              if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(deepHttps).then(() => toast("Sign URL copied")).catch(() => toast("Copy failed"));
+              } else {
+                toast(deepHttps);
+              }
+            };
           }
           const wrap = document.getElementById("xaman-qr-wrap");
           if (wrap) {
