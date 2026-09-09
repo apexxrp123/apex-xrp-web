@@ -1,0 +1,31 @@
+name: decode-step1-gamejs
+on:
+  push:
+    paths:
+      - "apex-io/_step1_game.js.zlib.b64"
+      - ".github/workflows/decode-step1-gamejs.yml"
+jobs:
+  decode:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: step1-xaman-wallet-ui
+      - name: Decode and commit game.js
+        run: |
+          python3 - <<'PY'
+          import zlib, base64, hashlib, pathlib
+          b = pathlib.Path("apex-io/_step1_game.js.zlib.b64").read_text().strip()
+          data = zlib.decompress(base64.b64decode(b))
+          pathlib.Path("apex-io/game.js").write_bytes(data)
+          print(len(data), hashlib.sha256(data).hexdigest())
+          assert hashlib.sha256(data).hexdigest() == "2c76d646023b665614eea953dcba5d2b429bd7c26488c7a7d01fa1233c4e3dbb"
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apex-io/game.js
+          git diff --cached --quiet && echo "no change" && exit 0
+          git commit -m "Step 1: Xaman Testnet SignIn wallet UI (QR + poll)"
+          git push
