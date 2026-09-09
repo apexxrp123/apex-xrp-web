@@ -1,0 +1,27 @@
+name: label-testnet-s2s1
+on:
+  push:
+    branches: [step2-slice1-network-gate]
+    paths:
+      - ".github/workflows/label-testnet-s2s1.yml"
+  workflow_dispatch:
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: step2-slice1-network-gate
+      - name: Relabel Testnet option and cleanup
+        run: |
+          set -euo pipefail
+          sed -i 's/XRPL Testnet (manual next)/XRPL Testnet/' apex-io/index.html
+          grep -n 'value="testnet"' apex-io/index.html
+          rm -f .github/workflows/label-testnet-s2s1.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Step 2 slice 1: label Testnet network option"
+          git push
