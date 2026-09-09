@@ -52,7 +52,7 @@
 
   const FEE_RATE = 0.10;
   // Creator only: paste your classic r-address. Rebuild the zip. Players never type this.
-  const OWNER_TREASURY = "";
+  const OWNER_TREASURY = "rL1KqdhZqvbs5rbWSGGS9paYLoM9Qo44zD";
   const OWNER_KEY = "";
   const XAMAN_APP_URL = "https://xaman.app";
   const XUMM_API_KEY = ""; // never put secrets in Pages; SignIn uses DEN_SERVER
