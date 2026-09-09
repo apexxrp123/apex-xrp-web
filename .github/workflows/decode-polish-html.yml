@@ -1,0 +1,51 @@
+name: decode-polish-html
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apex-io/_polish_html_b64/**"
+      - ".github/workflows/decode-polish-html.yml"
+  workflow_dispatch:
+jobs:
+  decode:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Decode index.html and styles.css
+        run: |
+          set -euo pipefail
+          python3 - <<'PY2'
+          import zlib, base64, hashlib, pathlib, json
+          root = pathlib.Path("apex-io/_polish_html_b64")
+          chunks = []
+          for i in range(8):
+              stem = f"p{i:02d}"
+              parts = sorted(root.glob(f"{stem}_*.txt"), key=lambda p: int(p.stem.split("_")[-1]))
+              whole = root / f"{stem}.txt"
+              if parts:
+                  chunks.append("".join(p.read_text().strip() for p in parts))
+              elif whole.exists():
+                  chunks.append(whole.read_text().strip())
+              else:
+                  raise SystemExit(f"missing {stem}")
+          hx = "".join(chunks)
+          b64 = bytes.fromhex(hx).decode("ascii")
+          data = zlib.decompress(base64.b64decode(b64))
+          expected = (root / "sha256.txt").read_text().strip()
+          got = hashlib.sha256(data).hexdigest()
+          if got != expected:
+              raise SystemExit(f"sha256 mismatch: {got} != {expected}")
+          payload = json.loads(data.decode("utf-8"))
+          pathlib.Path("apex-io/index.html").write_text(payload["index.html"], encoding="utf-8")
+          pathlib.Path("apex-io/styles.css").write_text(payload["styles.css"], encoding="utf-8")
+          print("wrote index", len(payload["index.html"]), "styles", len(payload["styles.css"]), got)
+          PY2
+          rm -rf apex-io/_polish_html_b64
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet && echo "no change" && exit 0
+          git commit -m "Polish: remove +25 funds; chat-toggle; card-chat; narrow chat CSS"
+          git push
