@@ -12,11 +12,12 @@ if "intro-boot.js" not in idx:
         1,
     )
 idx = re.sub(
-    r'<video id="intro-vid"[^>]*>',
+    r'<video id="intro-vid"[^>]*>\s*(?:</video>)?',
     '<video id="intro-vid" src="intro.mp4" poster="lobby-bg.jpg" muted playsinline preload="metadata"></video>',
     idx,
     count=1,
 )
+idx = idx.replace('</video></video>', '</video>')
 css = re.sub(
     r"\.intro video \{[\s\S]*?\n\}",
     """.intro video {
@@ -42,6 +43,8 @@ css = re.sub(
 )
 if "intro-boot.js" not in idx:
     raise SystemExit("intro-boot not linked")
+if "</video></video>" in idx:
+    raise SystemExit("double video remains")
 idx_p.write_text(idx, encoding="utf-8")
 css_p.write_text(css, encoding="utf-8")
 print("html_ok", hashlib.sha256(idx.encode()).hexdigest()[:16])
