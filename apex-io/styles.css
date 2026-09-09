@@ -212,10 +212,8 @@ label.row, label.tiny { pointer-events: auto; z-index: 7; position: relative; }
    Intro overlay already covers the screen (z-index 40). */
 .app.waiting-intro { visibility: visible; }
 .intro {
-  /* intro disabled for beta — if markup reappears, do not block UI */
-  display: none !important;
   position: fixed; inset: 0; z-index: 40;
-  background: #030806;
+  background: #030806 url("logo-full.jpg") center / contain no-repeat;
   display: grid; place-items: center;
 }
 .intro.gone {
@@ -226,7 +224,7 @@ label.row, label.tiny { pointer-events: auto; z-index: 7; position: relative; }
   width: 100%; height: 100%;
   object-fit: cover;
   display: block;
-  background: #030806;
+  background: transparent;
 }
 .intro-copy {
   position: absolute; left: 50%; bottom: 7%;
@@ -452,7 +450,6 @@ th { color: var(--muted); font-weight: 600; }
   background: #101c14;
   border: 2px solid var(--gold);
   border-radius: 14px;
-  padding: 14px 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
