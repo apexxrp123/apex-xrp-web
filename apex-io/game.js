@@ -101,7 +101,7 @@
   const ctx = canvas.getContext("2d");
   const lobbyArt = new Image();
   lobbyArt.onload = () => { if (state.mode === "lobby") render(); };
-  lobbyArt.src = "lobby-bg.jpg";
+  setTimeout(() => { try { lobbyArt.src = "lobby-bg.jpg"; } catch (_) {} }, 0);
   const toastEl = document.getElementById("toast");
   const overlay = document.getElementById("overlay");
 
@@ -2556,8 +2556,19 @@
         : `<tr><td colspan="3">No sheds yet.</td></tr>`;
     }
   }
-  function playCoilBite() {
+  
+  function ensureCoilVid() {
     const vid = document.getElementById("coil-vid");
+    if (!vid) return null;
+    if (!vid.getAttribute("src") && !vid.currentSrc) {
+      vid.setAttribute("src", "coil-draw.mp4");
+      try { vid.load(); } catch (_) {}
+    }
+    return vid;
+  }
+
+  function playCoilBite() {
+    const vid = ensureCoilVid();
     const snake = document.getElementById("coil-snake");
     const num = document.getElementById("coil-num");
     const res = document.getElementById("coil-result");
@@ -2607,7 +2618,7 @@
       return;
     }
     fluteSfx();
-    const vid = document.getElementById("coil-vid");
+    const vid = ensureCoilVid();
     const snake = document.getElementById("coil-snake");
     const num = document.getElementById("coil-num");
     const res = document.getElementById("coil-result");

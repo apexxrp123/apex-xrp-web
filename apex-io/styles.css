@@ -18,7 +18,7 @@ body {
   font-family: "Trebuchet MS", "Segoe UI", sans-serif;
   background:
     linear-gradient(180deg, rgba(4,10,6,0.42) 0%, rgba(4,10,6,0.28) 40%, rgba(4,8,6,0.55) 100%),
-    url("lobby-bg.jpg") center / cover no-repeat fixed;
+    url("lobby-bg.jpg") center / cover no-repeat;
   color: var(--text);
   overflow: auto;
   touch-action: manipulation;
