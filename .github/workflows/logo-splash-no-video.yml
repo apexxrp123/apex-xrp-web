@@ -14,7 +14,7 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
-      - name: Apply logo splash HTML/CSS + game.js
+      - name: Strip intro; lobby loads immediately
         run: |
           set -euo pipefail
           python3 apex-io/_patches/logo_splash_html.py
@@ -23,5 +23,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add apex-io/index.html apex-io/styles.css apex-io/game.js
           git diff --cached --quiet && echo "no change" && exit 0
-          git commit -m "Aw Snap fix: logo splash only, remove intro.mp4; hard clear to lobby"
+          git commit -m "Remove intro entirely; lobby loads immediately"
           git push
