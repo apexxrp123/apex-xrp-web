@@ -206,11 +206,8 @@ label.row, label.tiny { pointer-events: auto; z-index: 7; position: relative; }
 /* Fail-open: do NOT hide .app — a stuck intro used to freeze the whole lobby.
    Intro overlay already covers the screen (z-index 40). */
 .app.waiting-intro { visibility: visible; }
-.intro {
-  position: fixed; inset: 0; z-index: 40;
-  background: #030806;
-  display: grid; place-items: center;
-}
+.intro { display: none !important; }
+
 .intro.gone {
   display: none !important;
   opacity: 0; pointer-events: none;
@@ -521,5 +518,10 @@ th { color: var(--muted); font-weight: 600; }
   .app.playing.chat-open .chat-toggle { background: #e7c56a; color: #2a2108; }
 }
 
-.side, .overlay, .side.right { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+.side, .overlay, .side.right {
+  backdrop-filter: none; -webkit-
+  backdrop-filter: none; }
 @media (max-width: 900px) { .app { transform: none !important; width: 100% !important; height: 100dvh !important; } }
+
+.intro { display: none !important; }
+.side, .overlay { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }

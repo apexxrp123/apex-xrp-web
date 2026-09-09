@@ -3530,40 +3530,9 @@
   function runBiteIntro() {
     const wrap = document.getElementById("intro");
     const app = document.getElementById("app");
-    const afterIntro = () => {
-      try { if (typeof recordSiteVisit === "function") recordSiteVisit(); } catch (_) {}
-    };
-    let done = false;
-    function finish() {
-      if (done) return;
-      done = true;
-      if (app) app.classList.remove("waiting-intro");
-      if (wrap) {
-        try {
-          wrap.classList.add("gone");
-          setTimeout(() => { try { wrap.remove(); } catch (_) {} }, 200);
-        } catch (_) {
-          try { wrap.remove(); } catch (_) {}
-        }
-      }
-      afterIntro();
-    }
-    if (!wrap || TRAILER) {
-      if (wrap) { try { wrap.remove(); } catch (_) {} }
-      if (app) app.classList.remove("waiting-intro");
-      afterIntro();
-      return;
-    }
-    const go = (e) => { try { if (e) { e.preventDefault(); e.stopPropagation(); } } catch (_) {} finish(); };
-    const skip = document.getElementById("intro-skip");
-    if (skip) {
-      skip.addEventListener("click", go, true);
-      skip.addEventListener("touchend", go, { capture: true, passive: false });
-    }
-    wrap.addEventListener("click", go, true);
-    wrap.addEventListener("touchend", go, { capture: true, passive: false });
-    setTimeout(finish, 1500);
-    setTimeout(finish, 2500);
+    if (app) app.classList.remove("waiting-intro");
+    if (wrap) { try { wrap.remove(); } catch (_) {} }
+    try { if (typeof recordSiteVisit === "function") recordSiteVisit(); } catch (_) {}
   }
 
   runBiteIntro();
