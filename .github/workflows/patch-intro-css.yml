@@ -1,0 +1,42 @@
+name: patch-intro-css
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/patch-intro-css.yml"
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fail-open waiting-intro
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("apex-io/styles.css")
+          t = p.read_text(encoding="utf-8")
+          old = ".app.waiting-intro { visibility: hidden; }"
+          new = (
+              "/* Fail-open: do NOT hide .app — a stuck intro used to freeze the whole lobby.\n"
+              "   Intro overlay already covers the screen (z-index 40). */\n"
+              ".app.waiting-intro { visibility: visible; }"
+          )
+          if old not in t and "Fail-open" in t and "visibility: visible" in t:
+              print("already patched")
+          elif old not in t:
+              raise SystemExit("expected waiting-intro hidden rule missing")
+          else:
+              t = t.replace(old, new, 1)
+              p.write_text(t, encoding="utf-8")
+              print("patched")
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apex-io/styles.css
+          git diff --cached --quiet && echo "no change" && exit 0
+          git commit -m "Intro freeze: Fail-open waiting-intro (visibility visible)"
+          git push
