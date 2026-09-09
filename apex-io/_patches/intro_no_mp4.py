@@ -58,7 +58,7 @@ css = re.sub(
     r"\.intro \{[\s\S]*?\n\}",
     """.intro {
   position: fixed; inset: 0; z-index: 40;
-  background: #030806 url(\"lobby-bg.jpg\") center / cover no-repeat;
+  background: #030806 url("lobby-bg.jpg") center / cover no-repeat;
   display: grid; place-items: center;
 }""",
     css,
@@ -173,11 +173,11 @@ if "function ensureCoilVid()" not in js2 and "function playCoilBite()" in js2:
 
 # Do not strip JS scale transform yet if CSS fixed - also neutralize JS scale that recreates GPU layer
 js2 = js2.replace(
-"""    if (app && window.innerWidth <= 980 && state.mode !== \"play\") {
+"""    if (app && window.innerWidth <= 980 && state.mode !== "play") {
       const s = Math.min(window.innerWidth / 1100, window.innerHeight / 720);
-      app.style.transform = \"scale(\" + s + \")\";
-    } else if (app) app.style.transform = \"\";""",
-"""    if (app) app.style.transform = \"\";""",
+      app.style.transform = "scale(" + s + ")";
+    } else if (app) app.style.transform = "";""",
+"""    if (app) app.style.transform = "";""",
 1,
 )
 
