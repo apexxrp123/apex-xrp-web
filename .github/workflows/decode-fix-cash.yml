@@ -19,7 +19,7 @@ jobs:
           python3 - <<'PY2'
           import zlib, base64, hashlib, pathlib
           root = pathlib.Path("apex-io/_fix_b64")
-          hex_files = sorted(root.glob("h*.txt"))
+          hex_files = sorted(root.glob("h[0-9][0-9][ab].txt"))
           if hex_files:
               b64 = bytes.fromhex("".join(p.read_text().strip() for p in hex_files)).decode("ascii")
           else:
