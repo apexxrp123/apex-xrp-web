@@ -113,7 +113,16 @@
     network: localStorage.getItem("apex-io-network") || "simulated",
     playerName: cleanName(localStorage.getItem("apex-io-name") || randomName()),
     wallet: safeParse(localStorage.getItem("apex-io-wallet"), null),
-    balanceXrp: clampNum(localStorage.getItem("apex-io-bal"), 40, 0, 1e6),
+    // Ledger balance only while a wallet is linked; no ghost bal after disconnect/refresh.
+    balanceXrp: (function () {
+      const w = safeParse(localStorage.getItem("apex-io-wallet"), null);
+      if (w && w.address) return clampNum(localStorage.getItem("apex-io-bal"), 0, 0, 1e6);
+      // Simulated chips only when not in a wallet session.
+      if ((localStorage.getItem("apex-io-network") || "simulated") !== "testnet") {
+        return clampNum(localStorage.getItem("apex-io-bal"), 40, 0, 1e6);
+      }
+      return 0;
+    })(),
     skin: safeParse(localStorage.getItem("apex-io-skin"), null) || {
       species: "cobra",
       pattern: "banded",
@@ -331,7 +340,8 @@
     localStorage.setItem("apex-io-treasury", state.treasury);
     localStorage.setItem("apex-io-network", state.network);
     localStorage.setItem("apex-io-name", state.playerName);
-    localStorage.setItem("apex-io-bal", String(state.balanceXrp));
+    if (state.wallet) localStorage.setItem("apex-io-bal", String(state.balanceXrp));
+    else localStorage.removeItem("apex-io-bal");
     localStorage.setItem("apex-io-skin", JSON.stringify(state.skin));
     localStorage.setItem("apex-io-fees", String(state.feePaidTotal));
     localStorage.setItem("apex-io-board", JSON.stringify(state.board));
@@ -620,7 +630,9 @@
       const body = await res.json().catch(() => ({}));
       if (gen !== _balGen) return null; // newer refresh won the race
       if (!body || !body.ok || typeof body.xrp !== "number") return null;
-      state.balanceXrp = +Number(body.xrp).toFixed(6);
+      // Prefer spendable (ledger − reserve); server sets xrp to spendable when available.
+      const shown = typeof body.spendableXrp === "number" ? body.spendableXrp : body.xrp;
+      state.balanceXrp = +Number(shown).toFixed(6);
       save();
       paintWalletBalance();
       return body;
@@ -1896,9 +1908,9 @@
       toast("All-in coil: grow to 28 first.");
       return;
     }
-    const gross = Math.round((w.prizePool || 0) * 100) / 100;
-    const fee = +(gross * FEE_RATE).toFixed(4);
-    const net = +(gross - fee).toFixed(4);
+    let gross = Math.round((w.prizePool || 0) * 100) / 100;
+    let fee = +(gross * FEE_RATE).toFixed(4);
+    let net = +(gross - fee).toFixed(4);
     if (!(gross > 0) || !(net > 0)) {
       toast("Nothing to cash out.");
       return;
@@ -1922,52 +1934,57 @@
       let progressTimer = setInterval(() => {
         toast("Still confirming on Testnet ledger…");
       }, 4000);
-      const payload = {
-        hunter: state.wallet.address,
-        grossXrp: gross,
-        lockTx: state.lastLockTx,
-      };
-      let body = null;
-      let lastErr = null;
-      // Retry: server is idempotent on lockTx — recovers when the phone drops a slow 200.
-      for (let attempt = 0; attempt < 4; attempt++) {
-        try {
-          if (attempt > 0) toast("Reconnecting to den server for cash-out…");
-          const res = await fetch(DEN_SERVER + "/den/cashout", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-          });
-          body = await res.json().catch(() => ({}));
-          lastErr = null;
-          if (body && body.ok) break;
-          // Soft fail (busy / fee pending): brief wait then retry
-          if (body && (body.busy || body.feePending)) {
-            await new Promise((r) => setTimeout(r, 2500));
-            continue;
+      try {
+        const payload = {
+          hunter: state.wallet.address,
+          grossXrp: gross,
+          lockTx: state.lastLockTx,
+        };
+        let body = null;
+        let lastErr = null;
+        // Retry: server is idempotent on lockTx — recovers when the phone drops a slow 200.
+        for (let attempt = 0; attempt < 4; attempt++) {
+          try {
+            if (attempt > 0) toast("Reconnecting to den server for cash-out…");
+            const res = await fetch(DEN_SERVER + "/den/cashout", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload),
+            });
+            body = await res.json().catch(() => ({}));
+            lastErr = null;
+            if (body && body.ok) break;
+            if (body && (body.busy || body.feePending)) {
+              await new Promise((r) => setTimeout(r, 2500));
+              continue;
+            }
+            break;
+          } catch (e) {
+            lastErr = e;
+            body = null;
+            await new Promise((r) => setTimeout(r, 2000 + attempt * 1500));
           }
-          break;
-        } catch (e) {
-          lastErr = e;
-          body = null;
-          await new Promise((r) => setTimeout(r, 2000 + attempt * 1500));
         }
-      }
-      clearInterval(progressTimer);
-      if (!body || !body.ok) {
-        toast((body && body.reason) || (lastErr ? "Could not reach den server for cash-out." : "Cash-out failed"));
-        w._cashOutBusy = false;
+        if (!body || !body.ok) {
+          toast((body && body.reason) || (lastErr ? "Could not reach den server for cash-out." : "Cash-out failed"));
+          return;
+        }
+        netTxHash = body.netTxHash;
+        feeTxHash = body.feeTxHash;
+        var drawTxHash = body.drawTxHash || null;
+        if (typeof body.grossXrp === "number") gross = body.grossXrp;
+        if (typeof body.feeXrp === "number") fee = body.feeXrp;
+        if (typeof body.netXrp === "number") net = body.netXrp;
+        w._lastDrawTxHash = drawTxHash;
+        if (body.replay) toast("Recovered cash-out from ledger…");
+      } catch (e) {
+        toast("Cash-out hit a client error — check wallet; lock may already be settled.");
+        console.error("cashOut", e);
         return;
+      } finally {
+        clearInterval(progressTimer);
+        w._cashOutBusy = false;
       }
-      netTxHash = body.netTxHash;
-      feeTxHash = body.feeTxHash;
-      var drawTxHash = body.drawTxHash || null;
-      if (typeof body.grossXrp === "number") gross = body.grossXrp;
-      if (typeof body.feeXrp === "number") fee = body.feeXrp;
-      if (typeof body.netXrp === "number") net = body.netXrp;
-      w._lastDrawTxHash = drawTxHash;
-      if (body.replay) toast("Recovered cash-out from ledger…");
-      w._cashOutBusy = false;
     }
 
     if (!useLedger) {
@@ -2121,8 +2138,15 @@
     el.textContent = "Queue · Jungle " + j + " · River Coil " + r + " · Night Apex " + n;
   }
   function renderMeta() {
-    document.getElementById("bal").textContent = state.balanceXrp.toFixed(3) + " XRP";
-    document.getElementById("bal-usd").textContent = usd(state.balanceXrp);
+    const balEl = document.getElementById("bal");
+    const balUsd = document.getElementById("bal-usd");
+    if (!state.wallet) {
+      balEl.textContent = "—";
+      if (balUsd) balUsd.textContent = "Link wallet";
+    } else {
+      balEl.textContent = state.balanceXrp.toFixed(3) + " XRP";
+      if (balUsd) balUsd.textContent = usd(state.balanceXrp);
+    }
     const et = document.getElementById("exp-tickets");
     if (et) et.textContent = state.exp.toLocaleString() + " EXP · " + (state.meta.tickets || 0) + " Sunday tickets";
     const px = document.getElementById("price");
@@ -3217,9 +3241,11 @@
 
   document.getElementById("wallet-disconnect").onclick = () => {
     state.wallet = null;
+    state.balanceXrp = 0;
     clearBalanceRetries();
     _balFetchAt = 0;
     _balAddr = null;
+    _balGen++;
     save();
     renderWallets();
     renderMeta();
