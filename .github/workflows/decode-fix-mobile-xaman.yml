@@ -1,0 +1,39 @@
+name: decode-fix-mobile-xaman
+on:
+  push:
+    branches: [fix-mobile-xaman-links]
+    paths:
+      - "apex-io/_mobile_b64/**"
+      - ".github/workflows/decode-fix-mobile-xaman.yml"
+  workflow_dispatch:
+jobs:
+  decode:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix-mobile-xaman-links
+      - name: Assemble decode and commit game.js
+        run: |
+          set -euo pipefail
+          cat apex-io/_mobile_b64/p*.txt > /tmp/game.b64
+          python3 - <<'PY2'
+          import zlib, base64, hashlib, pathlib
+          b = pathlib.Path("/tmp/game.b64").read_text().strip()
+          data = zlib.decompress(base64.b64decode(b))
+          expected = "b4c8406372c31ac0675cd8ec40e406517e1273702a2b8d20a91cd92583a1bd7e"
+          got = hashlib.sha256(data).hexdigest()
+          if got != expected:
+              raise SystemExit(f"sha256 mismatch: {got} != {expected}")
+          pathlib.Path("apex-io/game.js").write_bytes(data)
+          print("wrote", len(data), "bytes", got)
+          PY2
+          rm -rf apex-io/_mobile_b64
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet && echo "no change" && exit 0
+          git commit -m "Fix mobile Xaman Open links (xumm:// + _blank; copy URL)"
+          git push
