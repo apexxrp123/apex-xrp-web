@@ -578,9 +578,32 @@
     if (rankOf(state.exp).cur.name === "Last Hiss") add("goldhood", "Gold hood");
   }
 
+
+  function effectiveNetwork() {
+    if (state.wallet && state.wallet.network === "testnet") return "testnet";
+    return state.network === "testnet" ? "testnet" : "simulated";
+  }
+  function hasTestnetXaman() {
+    return !!(state.wallet && state.wallet.id === "xaman" && state.wallet.address && state.wallet.network === "testnet");
+  }
+  function syncNetworkUi() {
+    const netSel = document.getElementById("network");
+    if (netSel && document.activeElement !== netSel) netSel.value = state.network;
+    const add = document.getElementById("add-funds");
+    if (add) add.style.display = effectiveNetwork() === "testnet" ? "none" : "";
+  }
+  function gateTestnetHunt() {
+    if (effectiveNetwork() !== "testnet") return true;
+    if (hasTestnetXaman()) return true;
+    toast("Link Xaman (Testnet) before entering the den.");
+    return false;
+  }
+
   function startMatch(opts) {
     const duel = opts && opts.duel;
     const allIn = !duel && !!(document.getElementById("opt-allin") && document.getElementById("opt-allin").checked);
+    const watchOnly0 = !!(opts && opts.watch);
+    if (!watchOnly0 && !gateTestnetHunt()) return;
     if (opts && opts.watch && state.mode === "play" && state.world && !state.world.watch && state.world.snakes[0] && state.world.snakes[0].alive) {
       toast("Watch after you drop.");
       return;
@@ -1780,7 +1803,8 @@
     const age = document.getElementById("price-age");
     if (age) age.textContent = state.priceAt ? "live" : "cached";
     document.getElementById("name-out").textContent = state.playerName;
-    document.getElementById("net-out").textContent = state.network;
+    document.getElementById("net-out").textContent = effectiveNetwork();
+    syncNetworkUi();
     document.getElementById("fee-out").textContent = state.feePaidTotal.toFixed(3) + " XRP";
     document.getElementById("treasury-out").textContent = state.treasury || "not set — open Treasury";
     const w = state.world;
@@ -2246,6 +2270,7 @@
       toast("You're already in the pit.");
       return;
     }
+    if (!gateTestnetHunt()) return;
          fetch("https://apex-xrp-server-production.up.railway.app/room/jungle?name=" + encodeURIComponent(state.playerName))
       .then((r) => r.json())
       .then((j) => {
@@ -2528,6 +2553,10 @@
     });
   });
   tap(document.getElementById("add-funds"), () => {
+    if (effectiveNetwork() === "testnet") {
+      toast("Test chips are off on Testnet. Link Xaman and use real Testnet XRP next.");
+      return;
+    }
     state.balanceXrp = +(state.balanceXrp + 25).toFixed(3);
     save();
     renderMeta();
@@ -2609,6 +2638,15 @@
     tin.readOnly = true;
   }
   document.getElementById("network").value = state.network;
+  document.getElementById("network").onchange = () => {
+    state.network = document.getElementById("network").value === "testnet" ? "testnet" : "simulated";
+    save();
+    syncNetworkUi();
+    renderMeta();
+    renderWallets();
+    toast(state.network === "testnet" ? "Network: XRPL Testnet" : "Network: simulated");
+  };
+  syncNetworkUi();
 
   const WALLETS = [
     { id: "xaman", name: "Xaman", via: "XRP Ledger · sign in app" },
@@ -2635,6 +2673,7 @@
   }
 
   function renderWallets() {
+    syncNetworkUi();
     const grid = document.getElementById("wallet-grid");
     const disc = document.getElementById("wallet-disconnect");
     const status = document.getElementById("wallet-status");
