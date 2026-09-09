@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <div class="app waiting-intro" id="app">
+  <div class="app" id="app">
     <div class="mobile-bar">
       <div class="brand compact">
         <img class="logo-img" src="logo.png" alt="Apex.XRP cobra logo" />
@@ -270,15 +270,24 @@
       <button class="btn primary rank-close-btn" type="button" style="margin-top:12px">Back to den</button>
     </div>
   </div>
-  <div id="intro" class="intro">
-    <video id="intro-vid" src="intro.mp4" poster="lobby-bg.jpg" autoplay muted playsinline preload="auto"></video>
-    <div class="intro-copy">
-      <strong>APEX.XRP</strong>
-      <span>Apex Predator. Hunt the canopy.</span>
-    </div>
-    <button type="button" class="intro-skip" id="intro-skip">Skip</button>
-  </div>
+  
   <audio id="hiss-audio" src="hiss.mp3" preload="auto"></audio>
-  <script src="game.js"></script>
+  <script id="apex-kill-intro">
+/* Failsafe: never leave players on a stuck intro overlay */
+(function () {
+  function kill() {
+    var app = document.getElementById("app");
+    if (app) app.classList.remove("waiting-intro");
+    var wrap = document.getElementById("intro");
+    if (wrap) {
+      try { wrap.remove(); } catch (e) { wrap.style.display = "none"; }
+    }
+  }
+  kill();
+  setTimeout(kill, 0);
+  setTimeout(kill, 500);
+})();
+</script>
+<script src="game.js"></script>
 </body>
 </html>

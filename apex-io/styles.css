@@ -212,6 +212,8 @@ label.row, label.tiny { pointer-events: auto; z-index: 7; position: relative; }
    Intro overlay already covers the screen (z-index 40). */
 .app.waiting-intro { visibility: visible; }
 .intro {
+  /* intro disabled for beta — if markup reappears, do not block UI */
+  display: none !important;
   position: fixed; inset: 0; z-index: 40;
   background: #030806;
   display: grid; place-items: center;
