@@ -42,7 +42,6 @@
         <div class="tiny">XRP <span id="price" class="live-px">—</span> <span id="price-age"></span> · <span id="net-out">simulated</span></div>
         <div class="row" style="margin-top:10px">
           <button class="btn" id="rename">Username</button>
-          <button class="btn gold" id="add-funds">+25 test XRP</button>
         </div>
         <p class="tiny" id="wallet-status">No wallet linked. Test chips only. Mainnet send is off.</p>
         <div class="wallet-grid" id="wallet-grid"></div>
@@ -129,6 +128,7 @@
       <canvas id="arena"></canvas>
       <div id="queue-banner" class="queue-banner">Checking dens…</div>
       <div id="killcam-tag" class="killcam-tag hidden">KILL CAM</div>
+      <button type="button" id="chat-toggle" class="chat-toggle" aria-label="Den chat">Chat</button>
       <div class="hud">
         <div class="stat"><span>Den</span><b id="hud-server">—</b></div>
         <div class="stat"><span>Buy-in</span><b id="hud-stake">—</b></div>
@@ -205,7 +205,7 @@
         </div>
         <p class="tiny">Each leave-den cash-out. USD follows live XRP.</p>
       </div>
-      <div class="card">
+      <div class="card card-chat">
         <h2>Den chat</h2>
         <div id="chat-log" class="chat-log"></div>
         <form id="chat-form" class="chat-form">
