@@ -589,6 +589,7 @@
   let _balFetchAt = 0;
   let _balRetryTimers = [];
   let _balGen = 0;
+  let _balAddr = null;
   function clearBalanceRetries() {
     _balRetryTimers.forEach((t) => clearTimeout(t));
     _balRetryTimers = [];
@@ -1917,39 +1918,55 @@
         return;
       }
       w._cashOutBusy = true;
-      toast("Cashing out — you're safe until Testnet confirms…");
+      toast("Cashing out — you're safe until Testnet confirms (can take ~20–40s)…");
       let progressTimer = setInterval(() => {
         toast("Still confirming on Testnet ledger…");
-      }, 3500);
-      try {
-        const res = await fetch(DEN_SERVER + "/den/cashout", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            hunter: state.wallet.address,
-            grossXrp: gross,
-            lockTx: state.lastLockTx,
-          }),
-        });
-        const body = await res.json().catch(() => ({}));
-        if (!body || !body.ok) {
-          toast((body && body.reason) || "Cash-out failed");
-          w._cashOutBusy = false;
-          return;
+      }, 4000);
+      const payload = {
+        hunter: state.wallet.address,
+        grossXrp: gross,
+        lockTx: state.lastLockTx,
+      };
+      let body = null;
+      let lastErr = null;
+      // Retry: server is idempotent on lockTx — recovers when the phone drops a slow 200.
+      for (let attempt = 0; attempt < 4; attempt++) {
+        try {
+          if (attempt > 0) toast("Reconnecting to den server for cash-out…");
+          const res = await fetch(DEN_SERVER + "/den/cashout", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          body = await res.json().catch(() => ({}));
+          lastErr = null;
+          if (body && body.ok) break;
+          // Soft fail (busy / fee pending): brief wait then retry
+          if (body && (body.busy || body.feePending)) {
+            await new Promise((r) => setTimeout(r, 2500));
+            continue;
+          }
+          break;
+        } catch (e) {
+          lastErr = e;
+          body = null;
+          await new Promise((r) => setTimeout(r, 2000 + attempt * 1500));
         }
-        netTxHash = body.netTxHash;
-        feeTxHash = body.feeTxHash;
-        // Server is authoritative for 90/10 + lock cap.
-        if (typeof body.grossXrp === "number") gross = body.grossXrp;
-        if (typeof body.feeXrp === "number") fee = body.feeXrp;
-        if (typeof body.netXrp === "number") net = body.netXrp;
-      } catch (e) {
-        toast("Could not reach den server for cash-out.");
+      }
+      clearInterval(progressTimer);
+      if (!body || !body.ok) {
+        toast((body && body.reason) || (lastErr ? "Could not reach den server for cash-out." : "Cash-out failed"));
         w._cashOutBusy = false;
         return;
-      } finally {
-        clearInterval(progressTimer);
       }
+      netTxHash = body.netTxHash;
+      feeTxHash = body.feeTxHash;
+      var drawTxHash = body.drawTxHash || null;
+      if (typeof body.grossXrp === "number") gross = body.grossXrp;
+      if (typeof body.feeXrp === "number") fee = body.feeXrp;
+      if (typeof body.netXrp === "number") net = body.netXrp;
+      w._lastDrawTxHash = drawTxHash;
+      if (body.replay) toast("Recovered cash-out from ledger…");
       w._cashOutBusy = false;
     }
 
@@ -1969,7 +1986,7 @@
     state.meta.seasonExp += 15;
 
     if (useLedger && netTxHash && feeTxHash) {
-      pushChat("den", "Cash-out net " + netTxHash + " · fee " + feeTxHash + " · " + net + " XRP", true);
+      pushChat("den", "Cash-out net " + netTxHash + " · fee " + feeTxHash + (w._lastDrawTxHash ? (" · draw " + w._lastDrawTxHash) : "") + " · " + net + " XRP", true);
       clearMatchLock();
       scheduleBalanceRefresh(+net);
     } else {
@@ -1990,6 +2007,8 @@
 
   function showEnd(win, money) {
     clearMatchLock(); // next Join / Strike again needs a new Payment
+    // Always re-read Testnet wallet after every match (win or loss).
+    scheduleBalanceRefresh();
     overlay.classList.remove("hidden");
     const box = document.getElementById("modal-body");
     const expLine = money && money.exp ? ` +${money.exp} EXP (${escapeHtml(rankOf(state.exp).cur.name)})` : "";
@@ -2022,6 +2041,7 @@
     if (strike) strike.onclick = () => {
       overlay.classList.add("hidden");
       clearMatchLock();
+      scheduleBalanceRefresh();
       startMatch(); // Testnet: fresh 1 XRP Payment every Strike again
     };
     const watchAfter = document.getElementById("watch-after");
@@ -3009,7 +3029,14 @@
       status.textContent = state.wallet.network === "testnet"
         ? `${state.wallet.name} · ${state.wallet.address.slice(0, 8)}…${state.wallet.address.slice(-5)} · ${state.balanceXrp.toFixed(3)} XRP Testnet`
         : `${state.wallet.name} · ${state.wallet.address.slice(0, 8)}…${state.wallet.address.slice(-5)} · session only, no mainnet send`;
-      if (hasTestnetXaman()) refreshTestnetWalletBalance(false);
+      if (hasTestnetXaman()) {
+        if (!_balAddr || _balAddr !== state.wallet.address) {
+          _balAddr = state.wallet.address;
+          scheduleBalanceRefresh();
+        } else {
+          refreshTestnetWalletBalance(false);
+        }
+      }
       document.getElementById("net-out").textContent = state.wallet.id;
     } else {
       disc.style.display = "none";
@@ -3132,10 +3159,13 @@
                 save();
                 closeModal();
                 renderWallets();
+                // Force ledger balance on every link / re-link (disconnect → reconnect too).
+                scheduleBalanceRefresh();
                 refreshTestnetWalletBalance(true).then((bal) => {
                   if (bal && bal.unfunded) toast("Xaman linked (Testnet). Wallet unfunded — 0 XRP.");
-                  else if (bal) toast("Xaman linked · " + bal.xrp.toFixed(3) + " XRP Testnet. Mainnet send is off.");
+                  else if (bal) toast("Xaman linked · " + Number(bal.xrp).toFixed(3) + " XRP Testnet. Mainnet send is off.");
                   else toast("Xaman linked (Testnet). Mainnet send is off.");
+                  paintWalletBalance();
                 });
                 return;
               }
@@ -3187,8 +3217,12 @@
 
   document.getElementById("wallet-disconnect").onclick = () => {
     state.wallet = null;
+    clearBalanceRetries();
+    _balFetchAt = 0;
+    _balAddr = null;
     save();
     renderWallets();
+    renderMeta();
     document.getElementById("net-out").textContent = state.network;
     toast("Wallet disconnected");
   };
