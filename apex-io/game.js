@@ -3508,44 +3508,12 @@
   }
   resetPageZoom();
   function runBiteIntro() {
-    // Logo splash only — no intro.mp4 (video was crashing mobile/Chrome tabs).
+    // No intro — lobby loads immediately.
     const wrap = document.getElementById("intro");
     const app = document.getElementById("app");
-    const afterIntro = () => {
-      try { if (typeof recordSiteVisit === "function") recordSiteVisit(); } catch (_) {}
-    };
-    let done = false;
-    function finish() {
-      if (done) return;
-      done = true;
-      if (app) app.classList.remove("waiting-intro");
-      if (wrap) {
-        try {
-          wrap.classList.add("gone");
-          setTimeout(() => { try { wrap.remove(); } catch (_) {} }, 250);
-        } catch (_) {
-          try { wrap.remove(); } catch (_) {}
-        }
-      }
-      afterIntro();
-    }
-    if (!wrap || TRAILER) {
-      if (wrap) { try { wrap.remove(); } catch (_) {} }
-      if (app) app.classList.remove("waiting-intro");
-      afterIntro();
-      return;
-    }
-    const skip = document.getElementById("intro-skip");
-    if (skip) {
-      skip.onclick = (e) => { try { e.preventDefault(); e.stopPropagation(); } catch (_) {} finish(); };
-      skip.addEventListener("touchend", (e) => { e.preventDefault(); e.stopPropagation(); finish(); }, { passive: false });
-    }
-    wrap.addEventListener("click", (e) => {
-      if (e.target && e.target.id === "intro-skip") return;
-      finish();
-    });
-    setTimeout(finish, 1200);
-    setTimeout(finish, 2500);
+    if (app) app.classList.remove("waiting-intro");
+    if (wrap) { try { wrap.remove(); } catch (_) {} }
+    try { if (typeof recordSiteVisit === "function") recordSiteVisit(); } catch (_) {}
   }
 
   runBiteIntro();
