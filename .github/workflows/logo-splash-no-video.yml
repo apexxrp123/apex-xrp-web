@@ -1,0 +1,136 @@
+name: logo-splash-no-video
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/logo-splash-no-video.yml"
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Logo splash only — remove intro.mp4 (Aw Snap fix)
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re, hashlib
+
+          idx_p = Path("apex-io/index.html")
+          css_p = Path("apex-io/styles.css")
+          js_p = Path("apex-io/game.js")
+          idx = idx_p.read_text(encoding="utf-8")
+          css = css_p.read_text(encoding="utf-8")
+          js = js_p.read_text(encoding="utf-8")
+
+          idx = idx.replace('<div class="app" id="app">', '<div class="app waiting-intro" id="app">', 1)
+          idx = re.sub(r'\n?\s*<script id="apex-kill-intro">[\s\S]*?</script>\n?', '\n', idx)
+          intro = '''  <div id="intro" class="intro" role="dialog" aria-label="Apex.XRP">
+    <img class="intro-logo" src="logo-full.jpg" alt="Apex.XRP" />
+    <div class="intro-copy">
+      <strong>APEX.XRP</strong>
+      <span>Apex Predator. Hunt the canopy.</span>
+    </div>
+    <button type="button" class="intro-skip" id="intro-skip">Skip</button>
+  </div>
+'''
+          if re.search(r'<div id="intro"[\s\S]*?</div>\s*<audio id="hiss-audio"', idx):
+              idx = re.sub(r'  <div id="intro"[\s\S]*?</div>\n  <audio id="hiss-audio"', intro + '  <audio id="hiss-audio"', idx, count=1)
+          elif 'id="intro"' not in idx:
+              idx = idx.replace('  <audio id="hiss-audio"', intro + '  <audio id="hiss-audio"', 1)
+          else:
+              raise SystemExit('could not rewrite intro block')
+
+          if 'intro.mp4' in idx or 'intro-vid' in idx:
+              raise SystemExit('video still present in index')
+
+          css = re.sub(
+              r'\.intro \{[\s\S]*?\n\}',
+              '''.intro {
+  position: fixed; inset: 0; z-index: 40;
+  background: #030806 url("logo-full.jpg") center / contain no-repeat;
+  display: grid; place-items: center;
+}''',
+              css,
+              count=1,
+          )
+          if '.intro-logo' not in css:
+              css = css.replace(
+                  '.intro-copy {',
+                  '''.intro-logo {
+  width: min(72vw, 420px);
+  height: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 8px 28px #000a);
+  pointer-events: none;
+}
+.intro-copy {''',
+                  1,
+              )
+
+          new_fn = '''function runBiteIntro() {
+    // Logo splash only — no intro.mp4 (video was crashing mobile/Chrome tabs).
+    const wrap = document.getElementById("intro");
+    const app = document.getElementById("app");
+    const afterIntro = () => {
+      try { if (typeof recordSiteVisit === "function") recordSiteVisit(); } catch (_) {}
+    };
+    let done = false;
+    function finish() {
+      if (done) return;
+      done = true;
+      if (app) app.classList.remove("waiting-intro");
+      if (wrap) {
+        try {
+          wrap.classList.add("gone");
+          setTimeout(() => { try { wrap.remove(); } catch (_) {} }, 250);
+        } catch (_) {
+          try { wrap.remove(); } catch (_) {}
+        }
+      }
+      afterIntro();
+    }
+    if (!wrap || TRAILER) {
+      if (wrap) { try { wrap.remove(); } catch (_) {} }
+      if (app) app.classList.remove("waiting-intro");
+      afterIntro();
+      return;
+    }
+    const skip = document.getElementById("intro-skip");
+    if (skip) {
+      skip.onclick = (e) => { try { e.preventDefault(); e.stopPropagation(); } catch (_) {} finish(); };
+      skip.addEventListener("touchend", (e) => { e.preventDefault(); e.stopPropagation(); finish(); }, { passive: false });
+    }
+    wrap.addEventListener("click", (e) => {
+      if (e.target && e.target.id === "intro-skip") return;
+      finish();
+    });
+    // Always clear — never depend on media events.
+    setTimeout(finish, 1200);
+    setTimeout(finish, 2500);
+  }
+
+  runBiteIntro();'''
+          pat = re.compile(r"function runBiteIntro\(\) \{[\s\S]*?\n  \}\n\n  runBiteIntro\(\);")
+          if not pat.search(js):
+              raise SystemExit('runBiteIntro not found')
+          js2 = pat.sub(new_fn, js, count=1)
+          if 'Logo splash only' not in js2 or 'intro-vid' in re.search(r'function runBiteIntro\(\) \{[\s\S]*?\n  \}', js2).group(0):
+              raise SystemExit('game.js verify failed')
+
+          idx_p.write_text(idx, encoding='utf-8')
+          css_p.write_text(css, encoding='utf-8')
+          js_p.write_text(js2, encoding='utf-8')
+          print('index', hashlib.sha256(idx.encode()).hexdigest())
+          print('css', hashlib.sha256(css.encode()).hexdigest())
+          print('js', hashlib.sha256(js2.encode()).hexdigest())
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apex-io/index.html apex-io/styles.css apex-io/game.js
+          git diff --cached --quiet && echo "no change" && exit 0
+          git commit -m "Aw Snap fix: logo splash only, remove intro.mp4; hard clear to lobby"
+          git push
