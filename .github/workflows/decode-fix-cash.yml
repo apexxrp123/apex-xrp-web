@@ -19,11 +19,20 @@ jobs:
           python3 - <<'PY2'
           import zlib, base64, hashlib, pathlib
           root = pathlib.Path("apex-io/_fix_b64")
-          hex_files = sorted(root.glob("h[0-9][0-9][ab].txt"))
-          if hex_files:
-              b64 = bytes.fromhex("".join(p.read_text().strip() for p in hex_files)).decode("ascii")
-          else:
-              b64 = "".join(p.read_text() for p in sorted(root.glob("p*.txt"))).strip()
+          chunks = []
+          for i in range(16):
+              for lab in ("a", "b"):
+                  stem = f"h{i:02d}{lab}"
+                  parts = sorted(root.glob(f"{stem}_*.txt"), key=lambda p: int(p.stem.split("_")[-1]))
+                  whole = root / f"{stem}.txt"
+                  if parts:
+                      chunks.append("".join(p.read_text().strip() for p in parts))
+                  elif whole.exists():
+                      chunks.append(whole.read_text().strip())
+                  else:
+                      raise SystemExit(f"missing {stem}")
+          hx = "".join(chunks)
+          b64 = bytes.fromhex(hx).decode("ascii")
           data = zlib.decompress(base64.b64decode(b64))
           expected = (root / "sha256.txt").read_text().strip()
           got = hashlib.sha256(data).hexdigest()
