@@ -599,11 +599,180 @@
     return false;
   }
 
-  function startMatch(opts) {
+  /** Testnet Jungle buy-in: 1 XRP Payment to pot via Xaman. Watch/simulated skip. */
+  function ensureJungleLock() {
+    return new Promise((resolve) => {
+      if (effectiveNetwork() !== "testnet") {
+        resolve({ ok: true, skipped: true });
+        return;
+      }
+      if (!hasTestnetXaman()) {
+        toast("Link Xaman (Testnet) before entering the den.");
+        resolve({ ok: false, reason: "no-xaman" });
+        return;
+      }
+      let pollTimer = null;
+      const stopPoll = () => {
+        if (pollTimer) {
+          clearInterval(pollTimer);
+          pollTimer = null;
+        }
+      };
+      const finish = (result) => {
+        stopPoll();
+        resolve(result);
+      };
+      const closeModal = () => {
+        stopPoll();
+        overlay.classList.add("hidden");
+      };
+
+      overlay.classList.remove("hidden");
+      const box = document.getElementById("modal-body");
+      box.innerHTML = `
+        <h3>Jungle lock</h3>
+        <p>Approve 1 XRP Testnet Payment to the den pot in Xaman. Mainnet send is off.</p>
+        <p class="tiny" id="xaman-wait">Requesting Payment…</p>
+        <div id="xaman-qr-wrap" style="text-align:center;margin:12px 0"></div>
+        <p class="tiny"><a id="xaman-open" href="#" rel="noopener noreferrer">Open Xaman</a>
+        · <a id="xaman-deep" href="#" rel="noopener noreferrer">Open sign link</a></p>
+        <p class="tiny" id="xaman-url" style="word-break:break-all;margin-top:8px"></p>
+        <button class="btn ghost" id="xaman-copy" type="button" style="margin-top:6px">Copy sign URL</button>
+        <button class="btn ghost" id="wc-no">Cancel</button>`;
+      document.getElementById("wc-no").onclick = () => {
+        closeModal();
+        toast("Payment lock cancelled");
+        finish({ ok: false, reason: "cancelled" });
+      };
+
+      (async () => {
+        try {
+          const res = await fetch(DEN_SERVER + "/den/lock", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ address: state.wallet && state.wallet.address }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (res.status === 503) {
+            const reason = data.reason || "Den lock unavailable";
+            toast(reason);
+            const wait = document.getElementById("xaman-wait");
+            if (wait) wait.textContent = reason;
+            finish({ ok: false, reason });
+            return;
+          }
+          if (!res.ok || !data.uuid) {
+            const reason = data.reason || "Could not start Jungle Payment lock.";
+            toast(reason);
+            const wait = document.getElementById("xaman-wait");
+            if (wait) wait.textContent = reason;
+            finish({ ok: false, reason });
+            return;
+          }
+          const deep = data.deepLink || ("https://xumm.app/sign/" + data.uuid);
+          const deepHttps = deep.indexOf("http") === 0 ? deep : ("https://xumm.app/sign/" + data.uuid);
+          const deepApp = "xumm://xumm.app/sign/" + data.uuid;
+          const isPhone = ("ontouchstart" in window) || (window.matchMedia && window.matchMedia("(max-width: 900px)").matches);
+          const openA = document.getElementById("xaman-open");
+          const deepA = document.getElementById("xaman-deep");
+          if (openA) {
+            openA.href = isPhone ? deepApp : deepHttps;
+            if (isPhone) openA.target = "_blank";
+            else openA.removeAttribute("target");
+            openA.rel = "noopener noreferrer";
+            openA.removeAttribute("onclick");
+          }
+          if (deepA) {
+            deepA.href = deepHttps;
+            deepA.target = "_blank";
+            deepA.rel = "noopener noreferrer";
+            deepA.removeAttribute("onclick");
+          }
+          const urlEl = document.getElementById("xaman-url");
+          if (urlEl) urlEl.textContent = deepHttps;
+          const copyBtn = document.getElementById("xaman-copy");
+          if (copyBtn) {
+            copyBtn.onclick = () => {
+              if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(deepHttps).then(() => toast("Sign URL copied")).catch(() => toast("Copy failed"));
+              } else {
+                toast(deepHttps);
+              }
+            };
+          }
+          const wrap = document.getElementById("xaman-qr-wrap");
+          if (wrap) {
+            const proxyQr = DEN_SERVER + "/den/lock/" + encodeURIComponent(data.uuid) + "/qr";
+            const fallback = "https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=" + encodeURIComponent(deepHttps);
+            wrap.innerHTML = `<img alt="Xaman QR" src="${proxyQr}" referrerpolicy="no-referrer" style="max-width:220px;height:auto;background:#fff;padding:8px;border-radius:8px" />`;
+            const img = wrap.querySelector("img");
+            if (img) {
+              img.onerror = () => {
+                img.onerror = null;
+                img.src = fallback;
+              };
+            }
+          }
+          const waitEl = document.getElementById("xaman-wait");
+          if (waitEl) waitEl.textContent = "Waiting for 1 XRP Testnet Payment in Xaman…";
+
+          let ticks = 0;
+          pollTimer = setInterval(async () => {
+            ticks += 1;
+            if (ticks > 150) { // ~5 min at 2s
+              stopPoll();
+              toast("Payment lock timed out");
+              const w = document.getElementById("xaman-wait");
+              if (w) w.textContent = "Timed out.";
+              finish({ ok: false, reason: "timeout" });
+              return;
+            }
+            try {
+              const pr = await fetch(DEN_SERVER + "/den/lock/" + encodeURIComponent(data.uuid));
+              const body = await pr.json().catch(() => ({}));
+              if (body.pending) return;
+              if (body.ok && body.txHash) {
+                state.lastLockTx = body.txHash;
+                try { save(); } catch (_) {}
+                closeModal();
+                if (typeof pushChat === "function") {
+                  pushChat("den", "Jungle lock tx " + body.txHash, true);
+                } else {
+                  toast("Lock tx " + body.txHash);
+                }
+                finish({ ok: true, txHash: body.txHash });
+                return;
+              }
+              if (body.ok === false && body.reason && body.reason !== "waiting") {
+                stopPoll();
+                toast(body.reason);
+                const w = document.getElementById("xaman-wait");
+                if (w) w.textContent = body.reason;
+                finish({ ok: false, reason: body.reason });
+              }
+            } catch (_) {
+              /* keep polling through blips */
+            }
+          }, 2000);
+        } catch (_) {
+          toast("Could not reach den server for Jungle lock.");
+          const w = document.getElementById("xaman-wait");
+          if (w) w.textContent = "Network error talking to den server.";
+          finish({ ok: false, reason: "network" });
+        }
+      })();
+    });
+  }
+
+  async function startMatch(opts) {
     const duel = opts && opts.duel;
     const allIn = !duel && !!(document.getElementById("opt-allin") && document.getElementById("opt-allin").checked);
     const watchOnly0 = !!(opts && opts.watch);
     if (!watchOnly0 && !gateTestnetHunt()) return;
+    if (!watchOnly0 && !(opts && opts.skipLock) && effectiveNetwork() === "testnet") {
+      const lock = await ensureJungleLock();
+      if (!lock || !lock.ok) return;
+    }
     if (opts && opts.watch && state.mode === "play" && state.world && !state.world.watch && state.world.snakes[0] && state.world.snakes[0].alive) {
       toast("Watch after you drop.");
       return;
@@ -2261,7 +2430,7 @@
   if (coilDraw) coilDraw.onclick = runCoilDraw;
   setInterval(refreshCoilPage, 1000);
 
-  tap(document.getElementById("join"), () => {
+  tap(document.getElementById("join"), async () => {
     if (state.world && state.mode === "play" && state.world.watch) {
       toast("Leave the den before you hunt.");
       return;
@@ -2271,7 +2440,11 @@
       return;
     }
     if (!gateTestnetHunt()) return;
-         fetch("https://apex-xrp-server-production.up.railway.app/room/jungle?name=" + encodeURIComponent(state.playerName))
+    if (effectiveNetwork() === "testnet") {
+      const lock = await ensureJungleLock();
+      if (!lock || !lock.ok) return;
+    }
+    fetch(DEN_SERVER + "/room/jungle?name=" + encodeURIComponent(state.playerName))
       .then((r) => r.json())
       .then((j) => {
         if (j && j.full) {
@@ -2279,12 +2452,12 @@
           return;
         }
         toast("Jungle: " + ((j && j.who) ? j.who.join(", ") : state.playerName));
-        startMatch();
+        startMatch({ skipLock: true });
         window.apexRoom = "jungle";
       })
       .catch(() => {
         toast("Den server not reached — local pit");
-        startMatch();
+        startMatch({ skipLock: true });
       });
   });
   
