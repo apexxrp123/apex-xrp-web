@@ -1,0 +1,39 @@
+name: decode-fix-open-https
+on:
+  push:
+    branches: [fix-open-xaman-https]
+    paths:
+      - "apex-io/_open_https_b64/**"
+      - ".github/workflows/decode-fix-open-https.yml"
+  workflow_dispatch:
+jobs:
+  decode:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix-open-xaman-https
+      - name: Assemble decode and commit game.js
+        run: |
+          set -euo pipefail
+          cat apex-io/_open_https_b64/p*.txt > /tmp/game.b64
+          python3 - <<'PY2'
+          import zlib, base64, hashlib, pathlib
+          b = pathlib.Path("/tmp/game.b64").read_text().strip()
+          data = zlib.decompress(base64.b64decode(b))
+          expected = "a8034df1723c634fa28c183e185423a9fb9a443d3b3e9d5a57cd0950ff5b38ff"
+          got = hashlib.sha256(data).hexdigest()
+          if got != expected:
+              raise SystemExit(f"sha256 mismatch: {got} != {expected}")
+          pathlib.Path("apex-io/game.js").write_bytes(data)
+          print("wrote", len(data), "bytes", got)
+          PY2
+          rm -rf apex-io/_open_https_b64
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet && echo "no change" && exit 0
+          git commit -m "Open Xaman: use https SignIn URL on phone too (drop xumm://)"
+          git push
