@@ -1,0 +1,31 @@
+name: kill-intro-lobby
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/kill-intro-lobby.yml"
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Remove intro; show lobby immediately
+        run: |
+          set -euo pipefail
+          echo 'ZnJvbSBwYXRobGliIGltcG9ydCBQYXRoCmltcG9ydCByZSwgaGFzaGxpYgppZHhfcCwgY3NzX3AsIGpzX3AgPSBQYXRoKCJhcGV4LWlvL2luZGV4Lmh0bWwiKSwgUGF0aCgiYXBleC1pby9zdHlsZXMuY3NzIiksIFBhdGgoImFwZXgtaW8vZ2FtZS5qcyIpCmlkeCwgY3NzLCBqcyA9IGlkeF9wLnJlYWRfdGV4dCgpLCBjc3NfcC5yZWFkX3RleHQoKSwganNfcC5yZWFkX3RleHQoKQoKaWR4MiwgbiA9IHJlLnN1Ym4oCiAgICByJ1xzKjxkaXYgaWQ9ImludHJvIltcc1xTXSo/PC9kaXY+XHMqKD89PGF1ZGlvIGlkPSJoaXNzLWF1ZGlvInw8c2NyaXB0KScsCiAgICAiXG4gICIsCiAgICBpZHgsCiAgICBjb3VudD0xLAopCmlmIG4gIT0gMSBhbmQgJ2lkPSJpbnRybyInIGluIGlkeDoKICAgIGlkeDIsIG4gPSByZS5zdWJuKHInPGRpdiBpZD0iaW50cm8iW1xzXFNdKj88L2J1dHRvbj5ccyo8L2Rpdj5ccyonLCAiIiwgaWR4LCBjb3VudD0xKQppZHggPSBpZHgyCmlmICdpZD0iaW50cm8iJyBpbiBpZHg6CiAgICByYWlzZSBTeXN0ZW1FeGl0KCJpbnRybyBzdGlsbCBwcmVzZW50IikKaWR4ID0gaWR4LnJlcGxhY2UoJzxkaXYgY2xhc3M9ImFwcCB3YWl0aW5nLWludHJvIiBpZD0iYXBwIj4nLCAnPGRpdiBjbGFzcz0iYXBwIiBpZD0iYXBwIj4nKQppZHggPSBpZHgucmVwbGFjZSgnY2xhc3M9ImFwcCB3YWl0aW5nLWludHJvIicsICdjbGFzcz0iYXBwIicpCmlmICdzcmM9ImdhbWUuanMiJyBub3QgaW4gaWR4OgogICAgaWYgImludHJvLWJvb3QuanMiIGluIGlkeDoKICAgICAgICBpZHggPSBpZHgucmVwbGFjZSgnPHNjcmlwdCBzcmM9ImludHJvLWJvb3QuanMiPjwvc2NyaXB0PicsICc8c2NyaXB0IHNyYz0iaW50cm8tYm9vdC5qcyI+PC9zY3JpcHQ+XG48c2NyaXB0IHNyYz0iZ2FtZS5qcyI+PC9zY3JpcHQ+JywgMSkKICAgIGVsc2U6CiAgICAgICAgaWR4ID0gaWR4LnJlcGxhY2UoIjwvYm9keT4iLCAnPHNjcmlwdCBzcmM9ImdhbWUuanMiPjwvc2NyaXB0PlxuPC9ib2R5PicsIDEpCgpQYXRoKCJhcGV4LWlvL2ludHJvLWJvb3QuanMiKS53cml0ZV90ZXh0KAogICAgIi8qIE5vIHNwbGFzaCDigJQgbG9iYnkgZmlyc3QuICovXG4oZnVuY3Rpb24oKXt0cnl7dmFyIGE9ZG9jdW1lbnQuZ2V0RWxlbWVudEJ5SWQoXCJhcHBcIik7aWYoYSlhLmNsYXNzTGlzdC5yZW1vdmUoXCJ3YWl0aW5nLWludHJvXCIpO3ZhciB3PWRvY3VtZW50LmdldEVsZW1lbnRCeUlkKFwiaW50cm9cIik7aWYodyl7dHJ5e3cucmVtb3ZlKCk7fWNhdGNoKGUpe3cuc3R5bGUuZGlzcGxheT1cIm5vbmVcIjt9fX1jYXRjaChlKXt9fSkoKTtcbiIKKQoKY3NzID0gcmUuc3ViKHIiXC5pbnRybyBce1tcc1xTXSo/XG5cfSIsICIuaW50cm8geyBkaXNwbGF5OiBub25lICFpbXBvcnRhbnQ7IH1cbiIsIGNzcywgY291bnQ9MSkKY3NzID0gcmUuc3ViKHIiXHMqYmFja2Ryb3AtZmlsdGVyOlxzKlteO10rOyIsICJcbiAgYmFja2Ryb3AtZmlsdGVyOiBub25lOyIsIGNzcykKaWYgIi5pbnRyb3tkaXNwbGF5Om5vbmUhaW1wb3J0YW50fSIgbm90IGluIGNzcy5yZXBsYWNlKCIgIiwgIiIpOgogICAgY3NzICs9ICJcbi5pbnRybyB7IGRpc3BsYXk6IG5vbmUgIWltcG9ydGFudDsgfVxuLnNpZGUsIC5vdmVybGF5IHsgYmFja2Ryb3AtZmlsdGVyOiBub25lICFpbXBvcnRhbnQ7IC13ZWJraXQtYmFja2Ryb3AtZmlsdGVyOiBub25lICFpbXBvcnRhbnQ7IH1cbiIKCmlmICJmdW5jdGlvbiBydW5CaXRlSW50cm8oKSIgaW4ganM6CiAgICBtID0gcmUuc2VhcmNoKHIiZnVuY3Rpb24gcnVuQml0ZUludHJvXChcKSBce1tcc1xTXSo/XG4gIFx9XG5cbiAgcnVuQml0ZUludHJvXChcKTsiLCBqcykKICAgIGlmIG06CiAgICAgICAganMgPSBqc1s6bS5zdGFydCgpXSArICIiImZ1bmN0aW9uIHJ1bkJpdGVJbnRybygpIHsKICAgIGNvbnN0IHdyYXAgPSBkb2N1bWVudC5nZXRFbGVtZW50QnlJZCgiaW50cm8iKTsKICAgIGNvbnN0IGFwcCA9IGRvY3VtZW50LmdldEVsZW1lbnRCeUlkKCJhcHAiKTsKICAgIGlmIChhcHApIGFwcC5jbGFzc0xpc3QucmVtb3ZlKCJ3YWl0aW5nLWludHJvIik7CiAgICBpZiAod3JhcCkgeyB0cnkgeyB3cmFwLnJlbW92ZSgpOyB9IGNhdGNoIChfKSB7fSB9CiAgICB0cnkgeyBpZiAodHlwZW9mIHJlY29yZFNpdGVWaXNpdCA9PT0gImZ1bmN0aW9uIikgcmVjb3JkU2l0ZVZpc2l0KCk7IH0gY2F0Y2ggKF8pIHt9CiAgfQoKICBydW5CaXRlSW50cm8oKTsiIiIgKyBqc1ttLmVuZCgpOl0KCmZvciBzIGluIFsiaGFzVGVzdG5ldFhhbWFuIiwgImNhc2hPdXQiLCAiT1dORVJfVFJFQVNVUlkiXToKICAgIGlmIHMgbm90IGluIGpzOgogICAgICAgIHJhaXNlIFN5c3RlbUV4aXQoIm1pc3NpbmcgIiArIHMpCgppZHhfcC53cml0ZV90ZXh0KGlkeCkKY3NzX3Aud3JpdGVfdGV4dChjc3MpCmpzX3Aud3JpdGVfdGV4dChqcykKcHJpbnQoIm9rIiwgaGFzaGxpYi5zaGEyNTYoaWR4LmVuY29kZSgpKS5oZXhkaWdlc3QoKVs6MTBdKQo=' | base64 -d > /tmp/kill_intro_lobby.py
+          python3 /tmp/kill_intro_lobby.py
+          mkdir -p apex-io/_patches
+          cp /tmp/kill_intro_lobby.py apex-io/_patches/kill_intro_lobby.py
+          ! grep -q 'id="intro"' apex-io/index.html
+          grep -q hasTestnetXaman apex-io/game.js
+          grep -q cashOut apex-io/game.js
+          grep -q 'src="game.js"' apex-io/index.html
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apex-io/index.html apex-io/styles.css apex-io/game.js apex-io/intro-boot.js apex-io/_patches/kill_intro_lobby.py
+          git diff --cached --quiet && echo nochange && exit 0
+          git commit -m "Fix: remove stuck intro splash so lobby shows (Testnet untouched)"
+          git push
