@@ -1,0 +1,84 @@
+name: restore-intro-html
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/restore-intro-html.yml"
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore intro markup + logo CSS
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re, hashlib
+          idx_p = Path("apex-io/index.html")
+          css_p = Path("apex-io/styles.css")
+          idx = idx_p.read_text(encoding="utf-8")
+          css = css_p.read_text(encoding="utf-8")
+
+          idx = idx.replace('<div class="app" id="app">', '<div class="app waiting-intro" id="app">', 1)
+          idx = re.sub(r'\n?\s*<script id="apex-kill-intro">[\s\S]*?</script>\n?', '\n', idx)
+          intro = '''  <div id="intro" class="intro">
+    <video id="intro-vid" src="intro.mp4" poster="logo-full.jpg" autoplay muted playsinline preload="auto"></video>
+    <div class="intro-copy">
+      <strong>APEX.XRP</strong>
+      <span>Apex Predator. Hunt the canopy.</span>
+    </div>
+    <button type="button" class="intro-skip" id="intro-skip">Skip</button>
+  </div>
+'''
+          if 'id="intro"' not in idx:
+              if '<audio id="hiss-audio"' not in idx:
+                  raise SystemExit('hiss-audio anchor missing')
+              idx = idx.replace('  <audio id="hiss-audio"', intro + '  <audio id="hiss-audio"', 1)
+          else:
+              idx = re.sub(r'(id="intro-vid"[^>]*poster=")[^"]*"', r'\1logo-full.jpg"', idx)
+
+          css = re.sub(
+              r'\.intro \{[\s\S]*?\n\}',
+              '''.intro {
+  position: fixed; inset: 0; z-index: 40;
+  background: #030806 url("logo-full.jpg") center / contain no-repeat;
+  display: grid; place-items: center;
+}''',
+              css,
+              count=1,
+          )
+          css = css.replace(
+              '''.intro video {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: block;
+  background: #030806;
+}''',
+              '''.intro video {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: block;
+  background: transparent;
+}''',
+          )
+
+          if 'id="intro"' not in idx or 'logo-full.jpg' not in idx:
+              raise SystemExit('index verify failed')
+          if 'logo-full.jpg' not in css or 'display: none !important' in css.split('.intro {',1)[1][:200]:
+              raise SystemExit('css verify failed')
+
+          idx_p.write_text(idx, encoding='utf-8')
+          css_p.write_text(css, encoding='utf-8')
+          print('index', hashlib.sha256(idx.encode()).hexdigest())
+          print('css', hashlib.sha256(css.encode()).hexdigest())
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apex-io/index.html apex-io/styles.css
+          git diff --cached --quiet && echo "no change" && exit 0
+          git commit -m "Restore intro overlay with logo-full.jpg poster/background"
+          git push
