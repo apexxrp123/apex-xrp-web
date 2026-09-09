@@ -1,4 +1,5 @@
 name: patch-polish-html
+# retrigger 1
 on:
   workflow_dispatch:
   push:
@@ -19,7 +20,8 @@ jobs:
           from pathlib import Path
           idx = Path("apex-io/index.html")
           t = idx.read_text()
-          t = t.replace('          <button class="btn gold" id="add-funds">+25 test XRP</button>\n', '')
+          import re
+          t = re.sub(r'\s*<button class="btn gold" id="add-funds">\+25 test XRP</button>\s*', '\n', t)
           if 'id="chat-toggle"' not in t:
               t = t.replace(
                   '      <div class="hud">',
@@ -27,7 +29,7 @@ jobs:
                   1,
               )
           t = t.replace('<div class="card">\n        <h2>Den chat</h2>', '<div class="card card-chat">\n        <h2>Den chat</h2>', 1)
-          assert 'add-funds' not in t
+          assert 'add-funds' not in t, 'add-funds still present'
           assert '+25 test XRP' not in t
           assert 'id="chat-toggle"' in t
           assert 'card-chat' in t
@@ -35,7 +37,8 @@ jobs:
           css = Path("apex-io/styles.css")
           c = css.read_text()
           if '.chat-toggle' not in c:
-              c += '''
+              c += open('/dev/null').read()  # no-op keep indent
+              c += """
 
 /* polish: in-den chat on narrow */
 .chat-toggle {
@@ -91,9 +94,9 @@ jobs:
   }
   .app.playing.chat-open .chat-toggle { background: #e7c56a; color: #2a2108; }
 }
-'''
+"""
           css.write_text(c)
-          print("patched index+styles")
+          print('patched ok')
           PY
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
