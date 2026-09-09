@@ -2511,10 +2511,16 @@
   }
   document.addEventListener("touchend", (e) => {
     if (e.target.closest("input, select, textarea, label, option")) return;
+    // Do not intercept Xaman SignIn anchors inside the modal
+    if (e.target.closest("#modal-body a, #xaman-open, #xaman-deep")) return;
     const hit = e.target.closest("button, .btn, .tier, .skin, .wallet-btn, #intro-skip, .tab-btn, .sheet-x");
     if (!hit) return;
     hit.click();
   });
+  document.addEventListener("click", (e) => {
+    // Guard: never let global UI handlers swallow Xaman deep links
+    if (e.target.closest("#modal-body a, #xaman-open, #xaman-deep")) return;
+  }, true);
   document.querySelectorAll("select, input[type=checkbox], input[type=text], input[type=number], textarea").forEach((el) => {
     el.addEventListener("touchend", (e) => {
       e.stopPropagation();
@@ -2675,8 +2681,8 @@
         <p>Scan in Xaman (Testnet). Mainnet accounts will be rejected.</p>
         <p class="tiny" id="xaman-wait">Requesting SignIn…</p>
         <div id="xaman-qr-wrap" style="text-align:center;margin:12px 0"></div>
-        <p class="tiny"><a href="${XAMAN_APP_URL}" target="_blank" rel="noopener noreferrer">Open Xaman</a>
-        · <a id="xaman-deep" href="#" target="_blank" rel="noopener noreferrer">Open sign link</a></p>
+        <p class="tiny"><a id="xaman-open" href="#" rel="noopener noreferrer">Open Xaman</a>
+        · <a id="xaman-deep" href="#" rel="noopener noreferrer">Open sign link</a></p>
         <button class="btn ghost" id="wc-no">Cancel</button>`;
       document.getElementById("wc-no").onclick = closeModal;
 
@@ -2695,11 +2701,22 @@
             return;
           }
           const deep = data.deepLink || ("https://xumm.app/sign/" + data.uuid);
-          const deepA = document.getElementById("xaman-deep");
-          if (deepA) deepA.href = deep;
+          const bindOpen = (el) => {
+            if (!el) return;
+            el.href = deep;
+            el.onclick = (ev) => {
+              ev.preventDefault();
+              ev.stopPropagation();
+              window.open(deep, "_blank", "noopener,noreferrer");
+            };
+          };
+          bindOpen(document.getElementById("xaman-open"));
+          bindOpen(document.getElementById("xaman-deep"));
           const wrap = document.getElementById("xaman-qr-wrap");
           if (wrap && data.qr) {
-            wrap.innerHTML = `<img alt="Xaman QR" src="${data.qr}" style="max-width:220px;height:auto;background:#fff;padding:8px;border-radius:8px" />`;
+            wrap.innerHTML = `<img alt="Xaman QR" src="${data.qr}" referrerpolicy="no-referrer" style="max-width:220px;height:auto;background:#fff;padding:8px;border-radius:8px" />`;
+          } else if (wrap) {
+            wrap.innerHTML = `<p class="tiny">QR may not load in browser — use Open Xaman / Open sign link.</p>`;
           }
           document.getElementById("xaman-wait").textContent = "Waiting for Testnet SignIn in Xaman…";
 
