@@ -1,1 +1,1 @@
-file:///workspace/apex-step1/game.js
+@/workspace/apex-step1/game.js
