@@ -1,0 +1,39 @@
+name: decode-step2-slice1
+on:
+  push:
+    branches: [step2-slice1-network-gate]
+    paths:
+      - "apex-io/_s2s1_b64/**"
+      - ".github/workflows/decode-step2-slice1.yml"
+  workflow_dispatch:
+jobs:
+  decode:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: step2-slice1-network-gate
+      - name: Assemble decode and commit game.js
+        run: |
+          set -euo pipefail
+          cat apex-io/_s2s1_b64/p*.txt > /tmp/game.b64
+          python3 - <<'PY2'
+          import zlib, base64, hashlib, pathlib
+          b = pathlib.Path("/tmp/game.b64").read_text().strip()
+          data = zlib.decompress(base64.b64decode(b))
+          expected = "a46cf35f783d68bfded3d85b78650aaf0850df546d242d4ae5dbe5f2f351f451"
+          got = hashlib.sha256(data).hexdigest()
+          if got != expected:
+              raise SystemExit(f"sha256 mismatch: {got} != {expected}")
+          pathlib.Path("apex-io/game.js").write_bytes(data)
+          print("wrote", len(data), "bytes", got)
+          PY2
+          rm -rf apex-io/_s2s1_b64
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet && echo "no change" && exit 0
+          git commit -m "Step 2 slice 1: Testnet network gate (no Payment yet)"
+          git push
