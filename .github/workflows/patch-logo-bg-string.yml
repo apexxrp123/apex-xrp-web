@@ -20,25 +20,24 @@ jobs:
           import hashlib
           p = Path("apex-io/game.js")
           t = p.read_text(encoding="utf-8")
-          old = "url(\"lobby-bg.jpg\") center / cover no-repeat"
-          new = "url(\"logo-full.jpg\") center / contain no-repeat"
-          # Only touch the intro onerror fallback (first occurrence after runBiteIntro)
+          old = 'url("lobby-bg.jpg") center / cover no-repeat'
+          new = 'url("logo-full.jpg") center / contain no-repeat'
           i = t.find("function runBiteIntro")
           if i < 0:
               raise SystemExit("runBiteIntro missing")
           j = t.find(old, i)
           if j < 0:
-              if "logo-full.jpg" in t[i:i+2500]:
+              if "logo-full.jpg" in t[i:i+3000]:
                   print("already logo", hashlib.sha256(t.encode()).hexdigest())
                   raise SystemExit(0)
               raise SystemExit("lobby-bg fallback not found in runBiteIntro")
           t2 = t[:j] + new + t[j+len(old):]
-          # Also paint logo as soon as intro starts (before play)
-          needle = "if (!wrap || !vid || TRAILER)"
-          insert_at = t2.find(needle, i)
-          stamp = 'try { wrap.style.background = \'#030806 url("logo-full.jpg") center / contain no-repeat\'; } catch (_) {}\n    '
-          if insert_at > 0 and "logo-full.jpg") center / contain" not in t2[i:insert_at]:
-              t2 = t2[:insert_at] + stamp + t2[insert_at:]
+          # Paint logo behind video as soon as intro starts
+          anchor = "const afterIntro = () => {"
+          k = t2.find(anchor, i)
+          stamp = "try { if (wrap) wrap.style.background = '#030806 url(\"logo-full.jpg\") center / contain no-repeat'; } catch (_) {}\n    "
+          if k > 0 and 'wrap.style.background' not in t2[i:k]:
+              t2 = t2[:k] + stamp + t2[k:]
           p.write_text(t2, encoding="utf-8")
           print("ok", hashlib.sha256(t2.encode()).hexdigest())
           PY
