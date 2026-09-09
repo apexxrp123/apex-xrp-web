@@ -1,0 +1,30 @@
+name: intro-no-mp4
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/intro-no-mp4.yml"
+      - "apex-io/_patches/intro_no_mp4.py"
+      - "apex-io/intro-boot.js"
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Drop intro.mp4; lobby-bg splash; mobile no scale
+        run: |
+          set -euo pipefail
+          python3 apex-io/_patches/intro_no_mp4.py
+          grep -q hasTestnetXaman apex-io/game.js
+          grep -q cashOut apex-io/game.js
+          ! grep -q intro.mp4 apex-io/index.html
+          grep -q intro-boot.js apex-io/index.html
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apex-io/index.html apex-io/styles.css apex-io/game.js apex-io/intro-boot.js
+          git diff --cached --quiet && echo nochange && exit 0
+          git commit -m "Aw Snap fix: drop intro.mp4; lobby-bg splash only; no mobile 1100px scale (Testnet untouched)"
+          git push
