@@ -587,6 +587,11 @@
     return !!(state.wallet && state.wallet.id === "xaman" && state.wallet.address && state.wallet.network === "testnet");
   }
   let _balFetchAt = 0;
+  let _balRetryTimers = [];
+  function clearBalanceRetries() {
+    _balRetryTimers.forEach((t) => clearTimeout(t));
+    _balRetryTimers = [];
+  }
   async function refreshTestnetWalletBalance(force) {
     if (!hasTestnetXaman()) return null;
     const now = Date.now();
@@ -599,10 +604,24 @@
       state.balanceXrp = +Number(body.xrp).toFixed(6);
       save();
       renderMeta();
+      renderWallets();
       return body;
     } catch (_) {
       return null;
     }
+  }
+  /** Ledger can lag after Payment — force-refresh a few times. */
+  function scheduleBalanceRefresh() {
+    if (!hasTestnetXaman()) return;
+    clearBalanceRetries();
+    refreshTestnetWalletBalance(true);
+    [1500, 4000, 9000].forEach((ms) => {
+      _balRetryTimers.push(setTimeout(() => refreshTestnetWalletBalance(true), ms));
+    });
+  }
+  function clearMatchLock() {
+    state.lastLockTx = null;
+    try { save(); } catch (_) {}
   }
   function syncNetworkUi() {
     const netSel = document.getElementById("network");
@@ -758,6 +777,7 @@
                 } else {
                   toast("Lock tx " + body.txHash);
                 }
+                scheduleBalanceRefresh();
                 finish({ ok: true, txHash: body.txHash });
                 return;
               }
@@ -787,7 +807,9 @@
     const allIn = !duel && !!(document.getElementById("opt-allin") && document.getElementById("opt-allin").checked);
     const watchOnly0 = !!(opts && opts.watch);
     if (!watchOnly0 && !gateTestnetHunt()) return;
-    if (!watchOnly0 && !(opts && opts.skipLock) && effectiveNetwork() === "testnet") {
+    // Paid Testnet den: always a fresh Xaman Payment — never reuse skipLock / prior lockTx.
+    if (!watchOnly0 && effectiveNetwork() === "testnet") {
+      clearMatchLock();
       const lock = await ensureJungleLock();
       if (!lock || !lock.ok) return;
     }
@@ -807,12 +829,17 @@
     const stake = watchOnly ? 0 : (duel ? duel.amt : state.tier.stakeXrp * (allIn ? 2 : 1));
     if (!duel && !watchOnly) {
       if (insure && state.exp < 40) { toast("Insurance needs 40 EXP."); return; }
-      if (state.balanceXrp < stake + side) {
-        toast("Not enough simulated XRP for this server.");
-        return;
+      if (hasTestnetXaman()) {
+        // Stake is paid on-ledger via Jungle lock; keep balanceXrp = Testnet wallet.
+        if (insure) state.exp -= 40;
+      } else {
+        if (state.balanceXrp < stake + side) {
+          toast("Not enough simulated XRP for this server.");
+          return;
+        }
+        state.balanceXrp = +(state.balanceXrp - stake - side).toFixed(6);
+        if (insure) state.exp -= 40;
       }
-      state.balanceXrp = +(state.balanceXrp - stake - side).toFixed(6);
-      if (insure) state.exp -= 40;
     }
     state.matchKills = 0;
     save();
@@ -1891,7 +1918,9 @@
       w._cashOutBusy = false;
     }
 
-    state.balanceXrp = +(state.balanceXrp + net).toFixed(6);
+    if (!useLedger) {
+      state.balanceXrp = +(state.balanceXrp + net).toFixed(6);
+    }
     state.feePaidTotal = +(state.feePaidTotal + fee).toFixed(4);
     state.meta.weekFees = +(state.meta.weekFees + fee).toFixed(4);
     state.meta.seasonPot = +(state.meta.seasonPot + fee * 0.02).toFixed(4);
@@ -1906,7 +1935,8 @@
 
     if (useLedger && netTxHash && feeTxHash) {
       pushChat("den", "Cash-out net " + netTxHash + " · fee " + feeTxHash + " · " + net + " XRP", true);
-      refreshTestnetWalletBalance(true);
+      clearMatchLock();
+      scheduleBalanceRefresh();
     } else {
       const rx = "sim:" + Math.random().toString(16).slice(2, 10);
       pushChat("den", "Cash-out receipt " + rx + " · " + net + " XRP", true);
@@ -1924,6 +1954,7 @@
   }
 
   function showEnd(win, money) {
+    clearMatchLock(); // next Join / Strike again needs a new Payment
     overlay.classList.remove("hidden");
     const box = document.getElementById("modal-body");
     const expLine = money && money.exp ? ` +${money.exp} EXP (${escapeHtml(rankOf(state.exp).cur.name)})` : "";
@@ -1955,7 +1986,8 @@
     const strike = document.getElementById("strike");
     if (strike) strike.onclick = () => {
       overlay.classList.add("hidden");
-      startMatch();
+      clearMatchLock();
+      startMatch(); // Testnet: fresh 1 XRP Payment every Strike again
     };
     const watchAfter = document.getElementById("watch-after");
     if (watchAfter) watchAfter.onclick = () => {
@@ -1974,10 +2006,12 @@
       fetch("https://apex-xrp-server-production.up.railway.app/room/jungle/leave?name=" + encodeURIComponent(state.playerName)).catch(() => {});
       state.world = null;
       state.mode = "lobby";
+      clearMatchLock();
       overlay.classList.add("hidden");
       applyWatchUi(false);
       setPlayingLayout(false);
       resize();
+      scheduleBalanceRefresh();
       renderMeta();
       renderBoard();
       renderRank();
@@ -2509,25 +2543,23 @@
       return;
     }
     if (!gateTestnetHunt()) return;
-    if (effectiveNetwork() === "testnet") {
-      const lock = await ensureJungleLock();
-      if (!lock || !lock.ok) return;
+    // Room check before Payment so a full den never burns a lock.
+    let roomOk = true;
+    try {
+      const rr = await fetch(DEN_SERVER + "/room/jungle?name=" + encodeURIComponent(state.playerName));
+      const j = await rr.json().catch(() => ({}));
+      if (j && j.full) {
+        toast("Den is full. Eight hunters max.");
+        return;
+      }
+      toast("Jungle: " + ((j && j.who) ? j.who.join(", ") : state.playerName));
+      window.apexRoom = "jungle";
+    } catch (_) {
+      toast("Den server not reached — local pit");
+      roomOk = false;
     }
-    fetch(DEN_SERVER + "/room/jungle?name=" + encodeURIComponent(state.playerName))
-      .then((r) => r.json())
-      .then((j) => {
-        if (j && j.full) {
-          toast("Den is full. Eight hunters max.");
-          return;
-        }
-        toast("Jungle: " + ((j && j.who) ? j.who.join(", ") : state.playerName));
-        startMatch({ skipLock: true });
-        window.apexRoom = "jungle";
-      })
-      .catch(() => {
-        toast("Den server not reached — local pit");
-        startMatch({ skipLock: true });
-      });
+    // Always fresh lock on Testnet (startMatch ignores skipLock for paid dens).
+    await startMatch();
   });
   
   let incomingChal = null;
