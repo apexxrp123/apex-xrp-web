@@ -3508,72 +3508,44 @@
   }
   resetPageZoom();
   function runBiteIntro() {
-    resetPageZoom();
+    // Logo splash only — no intro.mp4 (video was crashing mobile/Chrome tabs).
     const wrap = document.getElementById("intro");
-    const vid = document.getElementById("intro-vid");
     const app = document.getElementById("app");
-    try { if (wrap) wrap.style.background = '#030806 url("logo-full.jpg") center / contain no-repeat'; } catch (_) {}
     const afterIntro = () => {
       try { if (typeof recordSiteVisit === "function") recordSiteVisit(); } catch (_) {}
     };
-    if (!wrap || !vid || TRAILER) {
-      if (wrap) wrap.remove();
-      if (app) app.classList.remove("waiting-intro");
-      afterIntro();
-      return;
-    }
     let done = false;
     function finish() {
       if (done) return;
       done = true;
-      try { vid.pause(); } catch (_) {}
       if (app) app.classList.remove("waiting-intro");
-      try {
-        wrap.classList.add("gone");
-        setTimeout(() => { try { wrap.remove(); } catch (_) {} }, 400);
-      } catch (_) {
-        try { wrap.remove(); } catch (_) {}
+      if (wrap) {
+        try {
+          wrap.classList.add("gone");
+          setTimeout(() => { try { wrap.remove(); } catch (_) {} }, 250);
+        } catch (_) {
+          try { wrap.remove(); } catch (_) {}
+        }
       }
       afterIntro();
     }
-    try {
-      vid.muted = true;
-      vid.defaultMuted = true;
-      vid.playsInline = true;
-      vid.setAttribute("playsinline", "");
-      vid.setAttribute("muted", "");
-      vid.onended = finish;
-      vid.onerror = () => {
-        try { wrap.style.background = '#030806 url("logo-full.jpg") center / contain no-repeat'; } catch (_) {}
-        setTimeout(finish, 1200);
-      };
-      // If the mp4 stalls on refresh, don't leave players on a black overlay.
-      vid.onstalled = () => setTimeout(finish, 2500);
-      vid.onwaiting = () => { /* keep hard timeout below */ };
-      const skip = document.getElementById("intro-skip");
-      if (skip) {
-        skip.onclick = (e) => { try { e.preventDefault(); e.stopPropagation(); } catch (_) {} finish(); };
-        skip.addEventListener("touchend", (e) => { e.preventDefault(); e.stopPropagation(); finish(); }, { passive: false });
-      }
-      wrap.addEventListener("click", (e) => {
-        if (e.target && e.target.id === "intro-skip") return;
-        finish();
-      });
-      wrap.addEventListener("touchend", (e) => {
-        if (e.target && e.target.id === "intro-skip") return;
-        e.preventDefault();
-        finish();
-      }, { passive: false });
-      const play = vid.play();
-      if (play && play.catch) {
-        play.catch(() => { setTimeout(finish, 800); });
-      }
-      // Hard caps: never block lobby longer than a few seconds on refresh.
-      setTimeout(finish, 5000);
-      setTimeout(finish, 8000);
-    } catch (_) {
-      finish();
+    if (!wrap || TRAILER) {
+      if (wrap) { try { wrap.remove(); } catch (_) {} }
+      if (app) app.classList.remove("waiting-intro");
+      afterIntro();
+      return;
     }
+    const skip = document.getElementById("intro-skip");
+    if (skip) {
+      skip.onclick = (e) => { try { e.preventDefault(); e.stopPropagation(); } catch (_) {} finish(); };
+      skip.addEventListener("touchend", (e) => { e.preventDefault(); e.stopPropagation(); finish(); }, { passive: false });
+    }
+    wrap.addEventListener("click", (e) => {
+      if (e.target && e.target.id === "intro-skip") return;
+      finish();
+    });
+    setTimeout(finish, 1200);
+    setTimeout(finish, 2500);
   }
 
   runBiteIntro();
