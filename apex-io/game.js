@@ -2701,22 +2701,34 @@
             return;
           }
           const deep = data.deepLink || ("https://xumm.app/sign/" + data.uuid);
-          const bindOpen = (el) => {
-            if (!el) return;
-            el.href = deep;
-            el.onclick = (ev) => {
-              ev.preventDefault();
-              ev.stopPropagation();
-              window.open(deep, "_blank", "noopener,noreferrer");
-            };
-          };
-          bindOpen(document.getElementById("xaman-open"));
-          bindOpen(document.getElementById("xaman-deep"));
+          const deepHttps = deep.indexOf("http") === 0 ? deep : ("https://xumm.app/sign/" + data.uuid);
+          const deepApp = "xumm://xumm.app/sign/" + data.uuid;
+          const openA = document.getElementById("xaman-open");
+          const deepA = document.getElementById("xaman-deep");
+          if (openA) {
+            openA.href = deepApp;
+            openA.target = "_blank";
+            openA.rel = "noopener noreferrer";
+            openA.removeAttribute("onclick");
+          }
+          if (deepA) {
+            deepA.href = deepHttps;
+            deepA.target = "_blank";
+            deepA.rel = "noopener noreferrer";
+            deepA.removeAttribute("onclick");
+          }
           const wrap = document.getElementById("xaman-qr-wrap");
-          if (wrap && data.qr) {
-            wrap.innerHTML = `<img alt="Xaman QR" src="${data.qr}" referrerpolicy="no-referrer" style="max-width:220px;height:auto;background:#fff;padding:8px;border-radius:8px" />`;
-          } else if (wrap) {
-            wrap.innerHTML = `<p class="tiny">QR may not load in browser — use Open Xaman / Open sign link.</p>`;
+          if (wrap) {
+            const proxyQr = DEN_SERVER + "/xaman/signin/" + encodeURIComponent(data.uuid) + "/qr";
+            const fallback = "https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=" + encodeURIComponent(deepHttps);
+            wrap.innerHTML = `<img alt="Xaman QR" src="${proxyQr}" referrerpolicy="no-referrer" style="max-width:220px;height:auto;background:#fff;padding:8px;border-radius:8px" />`;
+            const img = wrap.querySelector("img");
+            if (img) {
+              img.onerror = () => {
+                img.onerror = null;
+                img.src = fallback;
+              };
+            }
           }
           document.getElementById("xaman-wait").textContent = "Waiting for Testnet SignIn in Xaman…";
 
