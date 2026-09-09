@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <div class="app" id="app">
+  <div class="app waiting-intro" id="app">
     <div class="mobile-bar">
       <div class="brand compact">
         <img class="logo-img" src="logo.png" alt="Apex.XRP cobra logo" />
@@ -171,8 +171,7 @@
           <p class="tiny">Pot <b id="coil-pot">0</b> XRP · <span id="coil-pot-usd">$0</span> · <span id="coil-tickets">0</span> tickets in the pot</p>
           <p class="tiny">Your tickets: <b id="coil-yours">0</b></p>
           <div class="coil-stage" id="coil-stage">
-            <video id="coil-vid" playsinline muted preload="none"></video>
-            </video>
+            <video id="coil-vid" src="coil-draw.mp4" playsinline muted></video>
             <div class="coil-snake hidden" id="coil-snake">Ticket <span id="coil-num"></span></div>
           </div>
           <p id="coil-result" class="tiny"></p>
@@ -271,7 +270,15 @@
       <button class="btn primary rank-close-btn" type="button" style="margin-top:12px">Back to den</button>
     </div>
   </div>
-  <audio id="hiss-audio" src="hiss.mp3" preload="none"></audio>
-<script src="game.js"></script>
+  <div id="intro" class="intro">
+    <video id="intro-vid" src="intro.mp4" poster="lobby-bg.jpg" autoplay muted playsinline preload="auto"></video>
+    <div class="intro-copy">
+      <strong>APEX.XRP</strong>
+      <span>Apex Predator. Hunt the canopy.</span>
+    </div>
+    <button type="button" class="intro-skip" id="intro-skip">Skip</button>
+  </div>
+  <audio id="hiss-audio" src="hiss.mp3" preload="auto"></audio>
+  <script src="game.js"></script>
 </body>
 </html>

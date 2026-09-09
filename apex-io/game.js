@@ -101,7 +101,7 @@
   const ctx = canvas.getContext("2d");
   const lobbyArt = new Image();
   lobbyArt.onload = () => { if (state.mode === "lobby") render(); };
-  setTimeout(() => { try { lobbyArt.src = "lobby-bg.jpg"; } catch (_) {} }, 0);
+  lobbyArt.src = "lobby-bg.jpg";
   const toastEl = document.getElementById("toast");
   const overlay = document.getElementById("overlay");
 
@@ -2556,19 +2556,8 @@
         : `<tr><td colspan="3">No sheds yet.</td></tr>`;
     }
   }
-  
-  function ensureCoilVid() {
-    const vid = document.getElementById("coil-vid");
-    if (!vid) return null;
-    if (!vid.getAttribute("src") && !vid.currentSrc) {
-      vid.setAttribute("src", "coil-draw.mp4");
-      try { vid.load(); } catch (_) {}
-    }
-    return vid;
-  }
-
   function playCoilBite() {
-    const vid = ensureCoilVid();
+    const vid = document.getElementById("coil-vid");
     const snake = document.getElementById("coil-snake");
     const num = document.getElementById("coil-num");
     const res = document.getElementById("coil-result");
@@ -2618,7 +2607,7 @@
       return;
     }
     fluteSfx();
-    const vid = ensureCoilVid();
+    const vid = document.getElementById("coil-vid");
     const snake = document.getElementById("coil-snake");
     const num = document.getElementById("coil-num");
     const res = document.getElementById("coil-result");
@@ -3519,12 +3508,71 @@
   }
   resetPageZoom();
   function runBiteIntro() {
-    // No intro — lobby loads immediately.
+    resetPageZoom();
     const wrap = document.getElementById("intro");
+    const vid = document.getElementById("intro-vid");
     const app = document.getElementById("app");
-    if (app) app.classList.remove("waiting-intro");
-    if (wrap) { try { wrap.remove(); } catch (_) {} }
-    try { if (typeof recordSiteVisit === "function") recordSiteVisit(); } catch (_) {}
+    const afterIntro = () => {
+      try { if (typeof recordSiteVisit === "function") recordSiteVisit(); } catch (_) {}
+    };
+    if (!wrap || !vid || TRAILER) {
+      if (wrap) wrap.remove();
+      if (app) app.classList.remove("waiting-intro");
+      afterIntro();
+      return;
+    }
+    let done = false;
+    function finish() {
+      if (done) return;
+      done = true;
+      try { vid.pause(); } catch (_) {}
+      if (app) app.classList.remove("waiting-intro");
+      try {
+        wrap.classList.add("gone");
+        setTimeout(() => { try { wrap.remove(); } catch (_) {} }, 400);
+      } catch (_) {
+        try { wrap.remove(); } catch (_) {}
+      }
+      afterIntro();
+    }
+    try {
+      vid.muted = true;
+      vid.defaultMuted = true;
+      vid.playsInline = true;
+      vid.setAttribute("playsinline", "");
+      vid.setAttribute("muted", "");
+      vid.onended = finish;
+      vid.onerror = () => {
+        try { wrap.style.background = '#030806 url("lobby-bg.jpg") center / cover no-repeat'; } catch (_) {}
+        setTimeout(finish, 1200);
+      };
+      // If the mp4 stalls on refresh, don't leave players on a black overlay.
+      vid.onstalled = () => setTimeout(finish, 2500);
+      vid.onwaiting = () => { /* keep hard timeout below */ };
+      const skip = document.getElementById("intro-skip");
+      if (skip) {
+        skip.onclick = (e) => { try { e.preventDefault(); e.stopPropagation(); } catch (_) {} finish(); };
+        skip.addEventListener("touchend", (e) => { e.preventDefault(); e.stopPropagation(); finish(); }, { passive: false });
+      }
+      wrap.addEventListener("click", (e) => {
+        if (e.target && e.target.id === "intro-skip") return;
+        finish();
+      });
+      wrap.addEventListener("touchend", (e) => {
+        if (e.target && e.target.id === "intro-skip") return;
+        e.preventDefault();
+        finish();
+      }, { passive: false });
+      const play = vid.play();
+      if (play && play.catch) {
+        play.catch(() => { setTimeout(finish, 800); });
+      }
+      // Hard caps: never block lobby longer than a few seconds on refresh.
+      setTimeout(finish, 5000);
+      setTimeout(finish, 8000);
+    } catch (_) {
+      finish();
+    }
   }
 
   runBiteIntro();
