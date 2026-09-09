@@ -1,0 +1,128 @@
+name: patch-logo-intro
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/patch-logo-intro.yml"
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Logo fallback in runBiteIntro + keep fail-open
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re, hashlib
+          p = Path("apex-io/game.js")
+          t = p.read_text(encoding="utf-8")
+          logo = "logo-full.jpg"
+          new_fn = '''function runBiteIntro() {
+    resetPageZoom();
+    const wrap = document.getElementById("intro");
+    const vid = document.getElementById("intro-vid");
+    const app = document.getElementById("app");
+    const LOGO_BG = '#030806 url("logo-full.jpg") center / contain no-repeat';
+    const afterIntro = () => {
+      try { if (typeof recordSiteVisit === "function") recordSiteVisit(); } catch (_) {}
+    };
+    const showLogo = () => {
+      try {
+        if (wrap) wrap.style.background = LOGO_BG;
+        if (vid) vid.style.display = "none";
+      } catch (_) {}
+    };
+    if (!wrap || TRAILER) {
+      if (wrap) { try { wrap.remove(); } catch (_) {} }
+      if (app) app.classList.remove("waiting-intro");
+      afterIntro();
+      return;
+    }
+    if (!vid) {
+      showLogo();
+      setTimeout(() => {
+        if (app) app.classList.remove("waiting-intro");
+        try { wrap.remove(); } catch (_) {}
+        afterIntro();
+      }, 1400);
+      return;
+    }
+    try { wrap.style.background = LOGO_BG; } catch (_) {}
+    let done = false;
+    function finish() {
+      if (done) return;
+      done = true;
+      try { vid.pause(); } catch (_) {}
+      if (app) app.classList.remove("waiting-intro");
+      try {
+        wrap.classList.add("gone");
+        setTimeout(() => { try { wrap.remove(); } catch (_) {} }, 400);
+      } catch (_) {
+        try { wrap.remove(); } catch (_) {}
+      }
+      afterIntro();
+    }
+    try {
+      vid.muted = true;
+      vid.defaultMuted = true;
+      vid.playsInline = true;
+      vid.setAttribute("playsinline", "");
+      vid.setAttribute("muted", "");
+      vid.onended = finish;
+      vid.onerror = () => {
+        showLogo();
+        setTimeout(finish, 1400);
+      };
+      vid.onstalled = () => { showLogo(); setTimeout(finish, 2500); };
+      vid.onwaiting = () => { /* hard timeout below */ };
+      const skip = document.getElementById("intro-skip");
+      if (skip) {
+        skip.onclick = (e) => { try { e.preventDefault(); e.stopPropagation(); } catch (_) {} finish(); };
+        skip.addEventListener("touchend", (e) => { e.preventDefault(); e.stopPropagation(); finish(); }, { passive: false });
+      }
+      wrap.addEventListener("click", (e) => {
+        if (e.target && e.target.id === "intro-skip") return;
+        finish();
+      });
+      wrap.addEventListener("touchend", (e) => {
+        if (e.target && e.target.id === "intro-skip") return;
+        e.preventDefault();
+        finish();
+      }, { passive: false });
+      const play = vid.play();
+      if (play && play.catch) {
+        play.catch(() => { showLogo(); setTimeout(finish, 1000); });
+      }
+      setTimeout(finish, 5000);
+      setTimeout(finish, 8000);
+    } catch (_) {
+      showLogo();
+      setTimeout(finish, 900);
+    }
+  }
+
+  runBiteIntro();'''
+          pat = re.compile(r"function runBiteIntro\(\) \{[\s\S]*?\n  \}\n\n  runBiteIntro\(\);")
+          m = pat.search(t)
+          if not m:
+              raise SystemExit("runBiteIntro block not found")
+          cur = m.group(0)
+          if logo in cur and "showLogo" in cur and "Intro video disabled" not in cur:
+              print("already logo fallback", hashlib.sha256(t.encode()).hexdigest())
+              raise SystemExit(0)
+          t2 = pat.sub(new_fn, t, count=1)
+          if logo not in t2 or "showLogo" not in t2:
+              raise SystemExit("patch failed verification")
+          p.write_text(t2, encoding="utf-8")
+          print("patched", len(t2), hashlib.sha256(t2.encode()).hexdigest())
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apex-io/game.js
+          git diff --cached --quiet && echo "no change" && exit 0
+          git commit -m "Intro: logo-full.jpg fallback when video fails; keep fail-open timeouts"
+          git push
