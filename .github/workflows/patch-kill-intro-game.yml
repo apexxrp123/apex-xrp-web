@@ -1,0 +1,57 @@
+name: patch-kill-intro-game
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/patch-kill-intro-game.yml"
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Replace runBiteIntro with permanent noop
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re, hashlib
+          p = Path("apex-io/game.js")
+          t = p.read_text(encoding="utf-8")
+          marker = "Intro video disabled for Testnet beta"
+          if marker in t and "function runBiteIntro" in t:
+              # already patched shape?
+              m = re.search(r"function runBiteIntro\(\) \{[\s\S]*?\n  \}\n\n  runBiteIntro\(\);", t)
+              if m and marker in m.group(0) and "intro-vid" not in m.group(0):
+                  print("already noop", hashlib.sha256(t.encode()).hexdigest())
+                  raise SystemExit(0)
+          new_fn = '''function runBiteIntro() {
+    // Intro video disabled for Testnet beta stability — lobby loads immediately.
+    const wrap = document.getElementById("intro");
+    const app = document.getElementById("app");
+    if (app) app.classList.remove("waiting-intro");
+    if (wrap) { try { wrap.remove(); } catch (_) {} }
+    try { if (typeof recordSiteVisit === "function") recordSiteVisit(); } catch (_) {}
+  }
+
+  runBiteIntro();'''
+          pat = re.compile(r"function runBiteIntro\(\) \{[\s\S]*?\n  \}\n\n  runBiteIntro\(\);")
+          m = pat.search(t)
+          if not m:
+              raise SystemExit("runBiteIntro block not found")
+          t2 = pat.sub(new_fn, t, count=1)
+          if marker not in t2:
+              raise SystemExit("marker missing after patch")
+          if "intro-vid" in re.search(r"function runBiteIntro\(\) \{[\s\S]*?\n  \}", t2).group(0):
+              raise SystemExit("intro-vid still in runBiteIntro")
+          p.write_text(t2, encoding="utf-8")
+          print("patched", len(t2), hashlib.sha256(t2.encode()).hexdigest())
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apex-io/game.js
+          git diff --cached --quiet && echo "no change" && exit 0
+          git commit -m "Kill intro permanently: runBiteIntro noop; lobby loads immediately"
+          git push
