@@ -586,6 +586,24 @@
   function hasTestnetXaman() {
     return !!(state.wallet && state.wallet.id === "xaman" && state.wallet.address && state.wallet.network === "testnet");
   }
+  let _balFetchAt = 0;
+  async function refreshTestnetWalletBalance(force) {
+    if (!hasTestnetXaman()) return null;
+    const now = Date.now();
+    if (!force && now - _balFetchAt < 8000) return null;
+    _balFetchAt = now;
+    try {
+      const res = await fetch(DEN_SERVER + "/xrp/balance?address=" + encodeURIComponent(state.wallet.address));
+      const body = await res.json().catch(() => ({}));
+      if (!body || !body.ok || typeof body.xrp !== "number") return null;
+      state.balanceXrp = +Number(body.xrp).toFixed(6);
+      save();
+      renderMeta();
+      return body;
+    } catch (_) {
+      return null;
+    }
+  }
   function syncNetworkUi() {
     const netSel = document.getElementById("network");
     if (netSel && document.activeElement !== netSel) netSel.value = state.network;
@@ -1888,6 +1906,7 @@
 
     if (useLedger && netTxHash && feeTxHash) {
       pushChat("den", "Cash-out net " + netTxHash + " · fee " + feeTxHash + " · " + net + " XRP", true);
+      refreshTestnetWalletBalance(true);
     } else {
       const rx = "sim:" + Math.random().toString(16).slice(2, 10);
       pushChat("den", "Cash-out receipt " + rx + " · " + net + " XRP", true);
@@ -2685,36 +2704,44 @@
   const cashBtn = document.getElementById("cash");
   let cashHold = null;
   let cashStarted = 0;
+  const CASH_HOLD_S = 5;
   function cashBtnLabel(t) {
     cashBtn.textContent = t == null ? "Hold 5s to cash out" : "Cashing out " + t.toFixed(1) + "s";
+  }
+  function cashHoldElapsed() {
+    return cashStarted ? (performance.now() - cashStarted) / 1000 : 0;
+  }
+  function finishCashHold(force) {
+    const elapsed = cashHoldElapsed();
+    if (cashHold) clearInterval(cashHold);
+    cashHold = null;
+    const started = cashStarted;
+    cashStarted = 0;
+    cashBtnLabel(null);
+    if (state.mode === "play" && started && (force || elapsed >= CASH_HOLD_S)) {
+      cashOut();
+    }
   }
   function beginCashHold(e) {
     if (e) e.preventDefault();
     if (state.mode !== "play" || cashHold) return;
     cashStarted = performance.now();
-    cashBtnLabel(5);
+    cashBtnLabel(CASH_HOLD_S);
     cashHold = setInterval(() => {
-      const left = 5 - (performance.now() - cashStarted) / 1000;
-      if (state.mode !== "play") { cancelCashHold(); return; }
+      const left = CASH_HOLD_S - cashHoldElapsed();
+      if (state.mode !== "play") { finishCashHold(false); return; }
       if (left <= 0) {
-        cancelCashHold();
-        cashOut();
+        finishCashHold(true);
         return;
       }
       cashBtnLabel(left);
-    }, 80);
-  }
-  function cancelCashHold() {
-    if (cashHold) clearInterval(cashHold);
-    cashHold = null;
-    cashBtnLabel(null);
+    }, 50);
   }
   cashBtn.addEventListener("mousedown", beginCashHold);
   cashBtn.addEventListener("touchstart", beginCashHold, { passive: false });
-  cashBtn.addEventListener("mouseup", cancelCashHold);
-  cashBtn.addEventListener("mouseleave", cancelCashHold);
-  cashBtn.addEventListener("touchend", cancelCashHold);
-  cashBtn.addEventListener("touchcancel", cancelCashHold);
+  cashBtn.addEventListener("mouseup", () => finishCashHold(false));
+  cashBtn.addEventListener("touchend", () => finishCashHold(false));
+  cashBtn.addEventListener("touchcancel", () => finishCashHold(false));
   document.getElementById("species").onchange = (e) => {
     state.skin.species = e.target.value;
     save();
@@ -2913,8 +2940,9 @@
     if (state.wallet) {
       disc.style.display = "block";
       status.textContent = state.wallet.network === "testnet"
-        ? `${state.wallet.name} · ${state.wallet.address.slice(0, 8)}…${state.wallet.address.slice(-5)} · testnet, no mainnet send`
+        ? `${state.wallet.name} · ${state.wallet.address.slice(0, 8)}…${state.wallet.address.slice(-5)} · ${state.balanceXrp.toFixed(3)} XRP Testnet`
         : `${state.wallet.name} · ${state.wallet.address.slice(0, 8)}…${state.wallet.address.slice(-5)} · session only, no mainnet send`;
+      if (hasTestnetXaman()) refreshTestnetWalletBalance();
       document.getElementById("net-out").textContent = state.wallet.id;
     } else {
       disc.style.display = "none";
@@ -3037,7 +3065,11 @@
                 save();
                 closeModal();
                 renderWallets();
-                toast("Xaman linked (Testnet). Mainnet send is off.");
+                refreshTestnetWalletBalance(true).then((bal) => {
+                  if (bal && bal.unfunded) toast("Xaman linked (Testnet). Wallet unfunded — 0 XRP.");
+                  else if (bal) toast("Xaman linked · " + bal.xrp.toFixed(3) + " XRP Testnet. Mainnet send is off.");
+                  else toast("Xaman linked (Testnet). Mainnet send is off.");
+                });
                 return;
               }
               if (body.ok === false && body.reason && body.reason !== "waiting") {
