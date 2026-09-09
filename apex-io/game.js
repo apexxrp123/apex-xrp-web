@@ -588,34 +588,56 @@
   }
   let _balFetchAt = 0;
   let _balRetryTimers = [];
+  let _balGen = 0;
   function clearBalanceRetries() {
     _balRetryTimers.forEach((t) => clearTimeout(t));
     _balRetryTimers = [];
+  }
+  function paintWalletBalance() {
+    renderMeta();
+    const status = document.getElementById("wallet-status");
+    if (status && state.wallet && state.wallet.network === "testnet") {
+      status.textContent =
+        state.wallet.name +
+        " · " +
+        state.wallet.address.slice(0, 8) +
+        "…" +
+        state.wallet.address.slice(-5) +
+        " · " +
+        state.balanceXrp.toFixed(3) +
+        " XRP Testnet";
+    }
   }
   async function refreshTestnetWalletBalance(force) {
     if (!hasTestnetXaman()) return null;
     const now = Date.now();
     if (!force && now - _balFetchAt < 8000) return null;
     _balFetchAt = now;
+    const gen = ++_balGen;
     try {
       const res = await fetch(DEN_SERVER + "/xrp/balance?address=" + encodeURIComponent(state.wallet.address));
       const body = await res.json().catch(() => ({}));
+      if (gen !== _balGen) return null; // newer refresh won the race
       if (!body || !body.ok || typeof body.xrp !== "number") return null;
       state.balanceXrp = +Number(body.xrp).toFixed(6);
       save();
-      renderMeta();
-      renderWallets();
+      paintWalletBalance();
       return body;
     } catch (_) {
       return null;
     }
   }
-  /** Ledger can lag after Payment — force-refresh a few times. */
-  function scheduleBalanceRefresh() {
+  /** Optimistic local tweak, then ledger confirm with staggered retries. */
+  function scheduleBalanceRefresh(optDeltaXrp) {
     if (!hasTestnetXaman()) return;
     clearBalanceRetries();
+    if (typeof optDeltaXrp === "number" && Number.isFinite(optDeltaXrp) && optDeltaXrp !== 0) {
+      state.balanceXrp = +Math.max(0, state.balanceXrp + optDeltaXrp).toFixed(6);
+      save();
+      paintWalletBalance();
+    }
     refreshTestnetWalletBalance(true);
-    [1500, 4000, 9000].forEach((ms) => {
+    [2000, 5000, 10000, 20000].forEach((ms) => {
       _balRetryTimers.push(setTimeout(() => refreshTestnetWalletBalance(true), ms));
     });
   }
@@ -777,7 +799,7 @@
                 } else {
                   toast("Lock tx " + body.txHash);
                 }
-                scheduleBalanceRefresh();
+                scheduleBalanceRefresh(-1);
                 finish({ ok: true, txHash: body.txHash });
                 return;
               }
@@ -937,6 +959,8 @@
 
   function killSnake(s, world) {
     if (!s.alive) return;
+    // Payout already in flight — stay alive until ledger returns (no kill-cam / double outcome).
+    if (s.isPlayer && world && world._cashOutBusy) return;
     s.alive = false;
     if (s.isPlayer && window.apexSock && window.apexSock.readyState === 1) {
       window.apexSock.send(JSON.stringify({ t: "dead", name: state.playerName, by: s.killedBy || "", stake: s.stake || 0 }));
@@ -1569,6 +1593,7 @@
     drawMinimap(w);
 
     if (w.snakes[0] && !w.snakes[0].alive && state.mode === "play" && !w.watch) {
+      if (w._cashOutBusy) return; // cash-out pending — ignore death UI
       const gained = grantMatchExp(false, w);
       state.meta.streak = 0;
       state.meta.hotFang = false;
@@ -1887,19 +1912,23 @@
         toast("Link Xaman (Testnet) before cash-out.");
         return;
       }
+      if (!state.lastLockTx) {
+        toast("No Jungle lock on file — enter the den with a 1 XRP Payment first.");
+        return;
+      }
       w._cashOutBusy = true;
-      toast("Sending cash-out on Testnet…");
+      toast("Cashing out — you're safe until Testnet confirms…");
+      let progressTimer = setInterval(() => {
+        toast("Still confirming on Testnet ledger…");
+      }, 3500);
       try {
         const res = await fetch(DEN_SERVER + "/den/cashout", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             hunter: state.wallet.address,
-            treasury: OWNER_TREASURY,
             grossXrp: gross,
-            netXrp: net,
-            feeXrp: fee,
-            lockTx: state.lastLockTx || null,
+            lockTx: state.lastLockTx,
           }),
         });
         const body = await res.json().catch(() => ({}));
@@ -1910,10 +1939,16 @@
         }
         netTxHash = body.netTxHash;
         feeTxHash = body.feeTxHash;
+        // Server is authoritative for 90/10 + lock cap.
+        if (typeof body.grossXrp === "number") gross = body.grossXrp;
+        if (typeof body.feeXrp === "number") fee = body.feeXrp;
+        if (typeof body.netXrp === "number") net = body.netXrp;
       } catch (e) {
         toast("Could not reach den server for cash-out.");
         w._cashOutBusy = false;
         return;
+      } finally {
+        clearInterval(progressTimer);
       }
       w._cashOutBusy = false;
     }
@@ -1936,7 +1971,7 @@
     if (useLedger && netTxHash && feeTxHash) {
       pushChat("den", "Cash-out net " + netTxHash + " · fee " + feeTxHash + " · " + net + " XRP", true);
       clearMatchLock();
-      scheduleBalanceRefresh();
+      scheduleBalanceRefresh(+net);
     } else {
       const rx = "sim:" + Math.random().toString(16).slice(2, 10);
       pushChat("den", "Cash-out receipt " + rx + " · " + net + " XRP", true);
@@ -2974,7 +3009,7 @@
       status.textContent = state.wallet.network === "testnet"
         ? `${state.wallet.name} · ${state.wallet.address.slice(0, 8)}…${state.wallet.address.slice(-5)} · ${state.balanceXrp.toFixed(3)} XRP Testnet`
         : `${state.wallet.name} · ${state.wallet.address.slice(0, 8)}…${state.wallet.address.slice(-5)} · session only, no mainnet send`;
-      if (hasTestnetXaman()) refreshTestnetWalletBalance();
+      if (hasTestnetXaman()) refreshTestnetWalletBalance(false);
       document.getElementById("net-out").textContent = state.wallet.id;
     } else {
       disc.style.display = "none";
