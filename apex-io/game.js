@@ -3512,6 +3512,7 @@
     const wrap = document.getElementById("intro");
     const vid = document.getElementById("intro-vid");
     const app = document.getElementById("app");
+    try { if (wrap) wrap.style.background = '#030806 url("logo-full.jpg") center / contain no-repeat'; } catch (_) {}
     const afterIntro = () => {
       try { if (typeof recordSiteVisit === "function") recordSiteVisit(); } catch (_) {}
     };
@@ -3543,7 +3544,7 @@
       vid.setAttribute("muted", "");
       vid.onended = finish;
       vid.onerror = () => {
-        try { wrap.style.background = '#030806 url("lobby-bg.jpg") center / cover no-repeat'; } catch (_) {}
+        try { wrap.style.background = '#030806 url("logo-full.jpg") center / contain no-repeat'; } catch (_) {}
         setTimeout(finish, 1200);
       };
       // If the mp4 stalls on refresh, don't leave players on a black overlay.
