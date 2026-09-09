@@ -208,10 +208,6 @@ label.row, label.tiny { pointer-events: auto; z-index: 7; position: relative; }
 .app.waiting-intro { visibility: visible; }
 .intro { display: none !important; }
 
-.intro.gone {
-  display: none !important;
-  opacity: 0; pointer-events: none;
-}
 .intro video {
   width: 100%; height: 100%;
   object-fit: cover;

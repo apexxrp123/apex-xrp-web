@@ -1746,14 +1746,11 @@
     const dt = Math.min(0.033, (t - state.last) / 1000 || 0.016);
     state.last = t;
     if (document.hidden) {
-      requestAnimationFrame(loop);
+      if (state.mode === "play" || state.mode === "killcam") requestAnimationFrame(loop);
       return;
     }
-    if (state.mode === "play") update(dt);
-    if (state.mode === "killcam") stepKillCam();
-    if (state.mode === "lobby") paintPreview(t);
-    render();
-    requestAnimationFrame(loop);
+    if (state.mode === "play") { update(dt); render(); requestAnimationFrame(loop); return; }
+    if (state.mode === "killcam") { stepKillCam(); render(); requestAnimationFrame(loop); return; }
   }
 
   function grantMatchExp(cashed, w) {
@@ -3516,7 +3513,16 @@
   refreshNews();
   setInterval(refreshNews, 180000);
   setInterval(refreshPrice, 12000);
-  requestAnimationFrame(loop);
+  try { resize(); if (state.mode === "lobby") render(); } catch (_) {}
+  function startApexLoop() {
+    if (window.__apexLoop) return;
+    window.__apexLoop = true;
+    requestAnimationFrame(loop);
+  }
+  setInterval(function () {
+    if ((state.mode === "play" || state.mode === "killcam") && !window.__apexLoop) startApexLoop();
+    if (state.mode === "lobby") window.__apexLoop = false;
+  }, 500);
   function resetPageZoom() {
     const meta = document.querySelector('meta[name="viewport"]');
     if (!meta) return;
