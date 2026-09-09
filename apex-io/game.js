@@ -2384,10 +2384,7 @@
     canvas.width = wrap.clientWidth || window.innerWidth;
     canvas.height = wrap.clientHeight || (vv ? vv.height : window.innerHeight);
     const app = document.getElementById("app");
-    if (app && window.innerWidth <= 980 && state.mode !== "play") {
-      const s = Math.min(window.innerWidth / 1100, window.innerHeight / 720);
-      app.style.transform = "scale(" + s + ")";
-    } else if (app) app.style.transform = "";
+    if (app) app.style.transform = "";
   }
   window.addEventListener("resize", resize);
   if (window.visualViewport) visualViewport.addEventListener("resize", resize);
@@ -2556,8 +2553,19 @@
         : `<tr><td colspan="3">No sheds yet.</td></tr>`;
     }
   }
-  function playCoilBite() {
+  
+  function ensureCoilVid() {
     const vid = document.getElementById("coil-vid");
+    if (!vid) return null;
+    if (!vid.getAttribute("src") && !vid.currentSrc) {
+      vid.setAttribute("src", "coil-draw.mp4");
+      try { vid.load(); } catch (_) {}
+    }
+    return vid;
+  }
+
+  function playCoilBite() {
+    const vid = ensureCoilVid();
     const snake = document.getElementById("coil-snake");
     const num = document.getElementById("coil-num");
     const res = document.getElementById("coil-result");
@@ -2607,7 +2615,7 @@
       return;
     }
     fluteSfx();
-    const vid = document.getElementById("coil-vid");
+    const vid = ensureCoilVid();
     const snake = document.getElementById("coil-snake");
     const num = document.getElementById("coil-num");
     const res = document.getElementById("coil-result");
@@ -3508,9 +3516,7 @@
   }
   resetPageZoom();
   function runBiteIntro() {
-    resetPageZoom();
     const wrap = document.getElementById("intro");
-    const vid = document.getElementById("intro-vid");
     const app = document.getElementById("app");
     const afterIntro = () => {
       try { if (typeof recordSiteVisit === "function") recordSiteVisit(); } catch (_) {}
@@ -3519,12 +3525,11 @@
     function finish() {
       if (done) return;
       done = true;
-      try { if (vid) vid.pause(); } catch (_) {}
       if (app) app.classList.remove("waiting-intro");
       if (wrap) {
         try {
           wrap.classList.add("gone");
-          setTimeout(() => { try { wrap.remove(); } catch (_) {} }, 300);
+          setTimeout(() => { try { wrap.remove(); } catch (_) {} }, 200);
         } catch (_) {
           try { wrap.remove(); } catch (_) {}
         }
@@ -3537,35 +3542,16 @@
       afterIntro();
       return;
     }
-    const skip = document.getElementById("intro-skip");
     const go = (e) => { try { if (e) { e.preventDefault(); e.stopPropagation(); } } catch (_) {} finish(); };
+    const skip = document.getElementById("intro-skip");
     if (skip) {
       skip.addEventListener("click", go, true);
       skip.addEventListener("touchend", go, { capture: true, passive: false });
-      skip.addEventListener("pointerup", go, true);
     }
     wrap.addEventListener("click", go, true);
     wrap.addEventListener("touchend", go, { capture: true, passive: false });
-    setTimeout(finish, 2000);
-    setTimeout(finish, 3500);
-    if (!vid) { finish(); return; }
-    try {
-      vid.muted = true;
-      vid.defaultMuted = true;
-      vid.playsInline = true;
-      vid.setAttribute("playsinline", "");
-      vid.setAttribute("muted", "");
-      vid.onended = finish;
-      vid.onerror = () => {
-        try { wrap.style.background = '#030806 url("lobby-bg.jpg") center / cover no-repeat'; } catch (_) {}
-        setTimeout(finish, 600);
-      };
-      vid.onstalled = () => setTimeout(finish, 1200);
-      const play = vid.play();
-      if (play && play.catch) play.catch(() => setTimeout(finish, 400));
-    } catch (_) {
-      finish();
-    }
+    setTimeout(finish, 1500);
+    setTimeout(finish, 2500);
   }
 
   runBiteIntro();
