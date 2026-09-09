@@ -1,0 +1,27 @@
+name: crash-light
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/crash-light.yml"
+      - "apex-io/_patches/crash_light_html.py"
+      - "apex-io/_patches/crash_light_js.py"
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lazy coil video + lighter first paint
+        run: |
+          set -euo pipefail
+          python3 apex-io/_patches/crash_light_html.py
+          python3 apex-io/_patches/crash_light_js.py
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apex-io/index.html apex-io/styles.css apex-io/game.js
+          git diff --cached --quiet && echo "no change" && exit 0
+          git commit -m "Crash-light: do not preload coil-draw.mp4; defer lobby art; hiss preload none"
+          git push
