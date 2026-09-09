@@ -100,19 +100,17 @@
   const canvas = document.getElementById("arena");
   const ctx = canvas.getContext("2d");
   const lobbyArt = new Image();
-  lobbyArt.onload = () => { if (state.mode === "lobby") render(); };
-  lobbyArt.src = "";
+  // Do NOT set src or onload until after `state` exists (TDZ crash wiped wallets/skins).
   function loadLobbyArt() {
     try {
       const wrap = document.querySelector(".arena-wrap");
       if (wrap) wrap.classList.add("art-ready");
-      if (!lobbyArt.src || lobbyArt.src.indexOf("lobby-bg") < 0) {
-        lobbyArt.onload = () => { if (state.mode === "lobby") render(); };
+      lobbyArt.onload = () => { try { if (state.mode === "lobby") render(); } catch (_) {} };
+      if (!lobbyArt.src || String(lobbyArt.src).indexOf("lobby-bg") < 0) {
         lobbyArt.src = "lobby-bg-lite.jpg";
       }
     } catch (_) {}
   }
-  setTimeout(loadLobbyArt, 2500);
 
   const toastEl = document.getElementById("toast");
   const overlay = document.getElementById("overlay");
@@ -3514,6 +3512,13 @@
   setInterval(refreshNews, 180000);
   setInterval(refreshPrice, 12000);
   try { resize(); if (state.mode === "lobby") render(); } catch (_) {}
+  try { renderWallets(); renderSkins(); paintPreview(); loadLobbyArt(); } catch (_) {}
+  // Light skin preview only (not full lobby rAF)
+  setInterval(function () {
+    try {
+      if (state.mode === "lobby" && !document.hidden) paintPreview(performance.now());
+    } catch (_) {}
+  }, 200);
   function startApexLoop() {
     if (window.__apexLoop) return;
     window.__apexLoop = true;
