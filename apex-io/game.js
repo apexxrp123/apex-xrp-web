@@ -101,7 +101,19 @@
   const ctx = canvas.getContext("2d");
   const lobbyArt = new Image();
   lobbyArt.onload = () => { if (state.mode === "lobby") render(); };
-  lobbyArt.src = "lobby-bg.jpg";
+  lobbyArt.src = "";
+  function loadLobbyArt() {
+    try {
+      const wrap = document.querySelector(".arena-wrap");
+      if (wrap) wrap.classList.add("art-ready");
+      if (!lobbyArt.src || lobbyArt.src.indexOf("lobby-bg") < 0) {
+        lobbyArt.onload = () => { if (state.mode === "lobby") render(); };
+        lobbyArt.src = "lobby-bg-lite.jpg";
+      }
+    } catch (_) {}
+  }
+  setTimeout(loadLobbyArt, 2500);
+
   const toastEl = document.getElementById("toast");
   const overlay = document.getElementById("overlay");
 
@@ -1894,7 +1906,7 @@
     return true;
   }
   function formatChatText(text) {
-    return escapeHtml(text).replace(/:xrp:/g, '<img class="chat-xrp" src="logo.png" alt="XRP">');
+    return escapeHtml(text).replace(/:xrp:/g, '<img class="chat-xrp" src="logo-lite.jpg" alt="XRP">');
   }
   function renderChat() {
     const el = document.getElementById("chat-log");
@@ -3332,7 +3344,7 @@
     const pack = ["🐍", "👑", "🔥", "💀", "💰", "🍀", "⚡", "🎯", ":xrp:"];
     emojiBar.innerHTML = pack.map((e) =>
       e === ":xrp:"
-        ? `<button type="button" data-e=":xrp:" title="XRP"><img src="logo.png" alt="XRP"></button>`
+        ? `<button type="button" data-e=":xrp:" title="XRP"><img src="logo-lite.jpg" alt="XRP"></button>`
         : `<button type="button" data-e="${e}">${e}</button>`
     ).join("");
     emojiBar.onclick = (ev) => {

@@ -16,16 +16,9 @@
 html, body { height: 100%; height: 100dvh; }
 body {
   font-family: "Trebuchet MS", "Segoe UI", sans-serif;
-  background:
-    linear-gradient(180deg, rgba(4,10,6,0.42) 0%, rgba(4,10,6,0.28) 40%, rgba(4,8,6,0.55) 100%),
-    url("lobby-bg.jpg") center / cover no-repeat;
+  background: #030806;
   color: var(--text);
-  overflow: auto;
-  touch-action: manipulation;
-  -ms-touch-action: manipulation;
-  -webkit-user-select: none;
-  user-select: none;
-  -webkit-tap-highlight-color: transparent;
+  overflow: hidden;
 }
 .side, input, select, textarea, .btn { touch-action: manipulation; -webkit-user-select: text; user-select: text; }
 input, select, textarea {
@@ -57,7 +50,7 @@ label.row, label.tiny { pointer-events: auto; z-index: 7; position: relative; }
 .side {
   background:
     linear-gradient(180deg, rgba(8, 18, 10, 0.62) 0%, rgba(6, 12, 8, 0.68) 100%);
-  backdrop-filter: blur(8px);
+  backdrop-filter: none;
   border-right: 1px solid var(--line);
   padding: 18px;
   overflow: auto;
@@ -134,9 +127,10 @@ label.row, label.tiny { pointer-events: auto; z-index: 7; position: relative; }
 
 .arena-wrap {
   position: relative;
-  background:
-    linear-gradient(180deg, rgba(4,10,6,0.2), rgba(4,10,6,0.35)),
-    url("lobby-bg.jpg") center / cover no-repeat;
+  background: #030806;
+}
+.arena-wrap.art-ready {
+  background: linear-gradient(180deg, rgba(4,10,6,0.2), rgba(4,10,6,0.35)), url("lobby-bg-lite.jpg") center / cover no-repeat;
 }
 #arena { width: 100%; height: 100%; display: block; background: #000; pointer-events: none; }
 .app.playing #arena { pointer-events: auto; }
@@ -182,7 +176,8 @@ label.row, label.tiny { pointer-events: auto; z-index: 7; position: relative; }
 
 .overlay {
   position: fixed; inset: 0; z-index: 35; display: grid; place-items: center;
-  background: rgba(4,8,6,0.72); backdrop-filter: blur(4px);
+  background: rgba(4,8,6,0.72);
+  backdrop-filter: none;
 }
 .overlay.hidden { display: none; }
 #coil-page { position: fixed; inset: 0; z-index: 30; }
@@ -213,7 +208,7 @@ label.row, label.tiny { pointer-events: auto; z-index: 7; position: relative; }
 .app.waiting-intro { visibility: visible; }
 .intro {
   position: fixed; inset: 0; z-index: 40;
-  background: #030806 url("lobby-bg.jpg") center / cover no-repeat;
+  background: #030806;
   display: grid; place-items: center;
 }
 .intro.gone {
@@ -525,3 +520,6 @@ th { color: var(--muted); font-weight: 600; }
   }
   .app.playing.chat-open .chat-toggle { background: #e7c56a; color: #2a2108; }
 }
+
+.side, .overlay, .side.right { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+@media (max-width: 900px) { .app { transform: none !important; width: 100% !important; height: 100dvh !important; } }
