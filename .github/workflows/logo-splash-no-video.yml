@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/logo-splash-no-video.yml"
+      - "apex-io/_patches/logo_splash_html.py"
       - "apex-io/_patches/logo_splash_patch.py"
 jobs:
   patch:
@@ -13,50 +14,10 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
-      - name: HTML/CSS logo splash (strip intro.mp4) + game.js
+      - name: Apply logo splash HTML/CSS + game.js
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-          import re, hashlib
-          idx_p = Path("apex-io/index.html")
-          css_p = Path("apex-io/styles.css")
-          idx = idx_p.read_text(encoding="utf-8")
-          css = css_p.read_text(encoding="utf-8")
-          idx = idx.replace('<div class="app" id="app">', '<div class="app waiting-intro" id="app">', 1)
-          idx = re.sub(r"\n?\s*<script id=\"apex-kill-intro\">[\s\S]*?</script>\n?", "\n", idx)
-          intro = """  <div id=\"intro\" class=\"intro\" role=\"dialog\" aria-label=\"Apex.XRP\">
-    <img class=\"intro-logo\" src=\"logo-full.jpg\" alt=\"Apex.XRP\" />
-    <div class=\"intro-copy\">
-      <strong>APEX.XRP</strong>
-      <span>Apex Predator. Hunt the canopy.</span>
-    </div>
-    <button type=\"button\" class=\"intro-skip\" id=\"intro-skip\">Skip</button>
-  </div>
-"""
-          if not re.search(r"  <div id=\"intro\"[\s\S]*?\n  <audio id=\"hiss-audio\"", idx):
-              raise SystemExit("intro/audio anchor missing")
-          idx = re.sub(r"  <div id=\"intro\"[\s\S]*?\n  <audio id=\"hiss-audio\"", intro + "  <audio id=\"hiss-audio\"", idx, count=1)
-          if "intro.mp4" in idx or "intro-vid" in idx:
-              raise SystemExit("video still in index")
-          css = re.sub(r"\.intro \{[\s\S]*?\n\}", """.intro {
-  position: fixed; inset: 0; z-index: 40;
-  background: #030806 url(\"logo-full.jpg\") center / contain no-repeat;
-  display: grid; place-items: center;
-}""", css, count=1)
-          if ".intro-logo" not in css:
-              css = css.replace(".intro-copy {", """.intro-logo {
-  width: min(72vw, 420px);
-  height: auto;
-  object-fit: contain;
-  filter: drop-shadow(0 8px 28px #000a);
-  pointer-events: none;
-}
-.intro-copy {""", 1)
-          idx_p.write_text(idx, encoding="utf-8")
-          css_p.write_text(css, encoding="utf-8")
-          print("html/css", hashlib.sha256(idx.encode()).hexdigest()[:12], hashlib.sha256(css.encode()).hexdigest()[:12])
-          PY
+          python3 apex-io/_patches/logo_splash_html.py
           python3 apex-io/_patches/logo_splash_patch.py
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
