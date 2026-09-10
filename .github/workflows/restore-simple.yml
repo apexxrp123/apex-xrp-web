@@ -1,0 +1,47 @@
+name: restore-simple
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/restore-simple.yml"
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore known-good lobby + Enter gate
+        run: |
+          set -euo pipefail
+          GOOD=192e9905b9ab9ef7ce5ce42c69104822f50c552e
+          curl -fsSL -o apex-io/_good_game.js "https://raw.githubusercontent.com/apexxrp123/apex-xrp-web/$GOOD/apex-io/game.js"
+          curl -fsSL -o apex-io/_good_index.html "https://raw.githubusercontent.com/apexxrp123/apex-xrp-web/$GOOD/apex-io/index.html"
+          curl -fsSL -o apex-io/_good_styles.css "https://raw.githubusercontent.com/apexxrp123/apex-xrp-web/$GOOD/apex-io/styles.css"
+          echo 'ZnJvbSBwYXRobGliIGltcG9ydCBQYXRoCmltcG9ydCByZSwgaGFzaGxpYgoKR0FURSA9ICIiIjwhRE9DVFlQRSBodG1sPgo8aHRtbCBsYW5nPVwiZW5cIj4KPGhlYWQ+CiAgPG1ldGEgY2hhcnNldD1cIlVURi04XCIgLz4KICA8bWV0YSBuYW1lPVwidmlld3BvcnRcIiBjb250ZW50PVwid2lkdGg9ZGV2aWNlLXdpZHRoLCBpbml0aWFsLXNjYWxlPTEuMCwgdmlld3BvcnQtZml0PWNvdmVyXCIgLz4KICA8bWV0YSBuYW1lPVwidGhlbWUtY29sb3JcIiBjb250ZW50PVwiIzAzMDgwNlwiIC8+CiAgPHRpdGxlPkFwZXguWFJQPC90aXRsZT4KICA8c3R5bGU+CiAgICBodG1sLGJvZHl7bWFyZ2luOjA7aGVpZ2h0OjEwMCU7YmFja2dyb3VuZDojMDMwODA2O2NvbG9yOiNlOGYwZWE7Zm9udC1mYW1pbHk6c3lzdGVtLXVpLHNhbnMtc2VyaWZ9CiAgICBtYWlue21pbi1oZWlnaHQ6MTAwZHZoO2Rpc3BsYXk6Z3JpZDtwbGFjZS1pdGVtczpjZW50ZXI7cGFkZGluZzoyNHB4O3RleHQtYWxpZ246Y2VudGVyfQogICAgaDF7bGV0dGVyLXNwYWNpbmc6LjEyZW07Y29sb3I6I2U3YzU2YTtmb250LXNpemU6MjhweDttYXJnaW46MCAwIDhweH0KICAgIHB7Y29sb3I6IzhhYTA5NDttYXJnaW46MCAwIDI0cHg7Zm9udC1zaXplOjE0cHh9CiAgICBhe2Rpc3BsYXk6aW5saW5lLWJsb2NrO21pbi1oZWlnaHQ6NDhweDttaW4td2lkdGg6MTYwcHg7cGFkZGluZzoxNHB4IDI4cHg7Ym9yZGVyLXJhZGl1czo5OTlweDtib3JkZXI6MXB4IHNvbGlkICNlN2M1NmE4ODtiYWNrZ3JvdW5kOiNlN2M1NmE7Y29sb3I6IzJhMjEwODtmb250LXdlaWdodDo4MDA7Zm9udC1zaXplOjE2cHg7dGV4dC1kZWNvcmF0aW9uOm5vbmV9CiAgPC9zdHlsZT4KPC9oZWFkPgo8Ym9keT4KICA8bWFpbj4KICAgIDxkaXY+CiAgICAgIDxoMT5BUEVYLlhSUDwvaDE+CiAgICAgIDxwPlRhcCB0byBvcGVuIHRoZSBsb2JieTwvcD4KICAgICAgPGEgaHJlZj1cImFwcC5odG1sXCI+RW50ZXI8L2E+CiAgICA8L2Rpdj4KICA8L21haW4+CjwvYm9keT4KPC9odG1sPgoiIiIKCnJvb3QgPSBQYXRoKCJhcGV4LWlvIikKIyBFeHBlY3QgZ29vZF8qIHN0YWdlZCBieSB3b3JrZmxvdyBpbnRvIGFwZXgtaW8vCmpzID0gKHJvb3QgLyAiZ2FtZS5qcyIpLnJlYWRfdGV4dCgpCmh0bWwgPSAocm9vdCAvICJpbmRleC5odG1sIikucmVhZF90ZXh0KCkgaWYgKHJvb3QgLyAiX2dvb2RfaW5kZXguaHRtbCIpLmV4aXN0cygpIGlzIEZhbHNlIGVsc2UgKHJvb3QgLyAiX2dvb2RfaW5kZXguaHRtbCIpLnJlYWRfdGV4dCgpCiMgd29ya2Zsb3cgd2lsbCB3cml0ZSBfZ29vZF8qIHRoZW4gdGhpcyBzY3JpcHQgcmVhZHMgdGhlbQppZiAocm9vdCAvICJfZ29vZF9pbmRleC5odG1sIikuZXhpc3RzKCk6CiAgICBodG1sID0gKHJvb3QgLyAiX2dvb2RfaW5kZXguaHRtbCIpLnJlYWRfdGV4dCgpCiAgICBqcyA9IChyb290IC8gIl9nb29kX2dhbWUuanMiKS5yZWFkX3RleHQoKQogICAgY3NzID0gKHJvb3QgLyAiX2dvb2Rfc3R5bGVzLmNzcyIpLnJlYWRfdGV4dCgpCmVsc2U6CiAgICBjc3MgPSAocm9vdCAvICJzdHlsZXMuY3NzIikucmVhZF90ZXh0KCkKCmh0bWwyLCBuID0gcmUuc3VibihyJ1xzKjxkaXYgaWQ9ImludHJvIltcc1xTXSo/PC9kaXY+XHMqKD89PGF1ZGlvIGlkPSJoaXNzLWF1ZGlvInw8c2NyaXB0KScsICJcbiAgIiwgaHRtbCwgY291bnQ9MSkKaWYgbiAhPSAxIGFuZCAnaWQ9ImludHJvIicgaW4gaHRtbDoKICAgIGh0bWwyLCBuID0gcmUuc3VibihyJzxkaXYgaWQ9ImludHJvIltcc1xTXSo/PC9idXR0b24+XHMqPC9kaXY+XHMqJywgIiIsIGh0bWwsIGNvdW50PTEpCmh0bWwgPSBodG1sMgppZiAnaWQ9ImludHJvIicgaW4gaHRtbDoKICAgIHJhaXNlIFN5c3RlbUV4aXQoImludHJvIHN0aWxsIHByZXNlbnQiKQpodG1sID0gaHRtbC5yZXBsYWNlKCJ3YWl0aW5nLWludHJvIiwgIiIpCmh0bWwgPSByZS5zdWIocic8dmlkZW8gaWQ9ImNvaWwtdmlkIltePl0qPlxzKig/OjwvdmlkZW8+KT8nLCAnPHZpZGVvIGlkPSJjb2lsLXZpZCIgcGxheXNpbmUgbXV0ZWQgcHJlbG9hZD0ibm9uZSI+PC92aWRlbz4nLCBodG1sLCBjb3VudD0xKQpodG1sID0gcmUuc3ViKHInPGF1ZGlvIGlkPSJoaXNzLWF1ZGlvIltePl0qPlxzKig/OjwvYXVkaW8+KT8nLCAnPGF1ZGlvIGlkPSJoaXNzLWF1ZGlvIiBzcmM9Imhpc3MubXAzIiBwcmVsb2FkPSJub25lIj48L2F1ZGlvPicsIGh0bWwsIGNvdW50PTEpCmh0bWwgPSBodG1sLnJlcGxhY2UoIjwvdmlkZW8+PC92aWRlbz4iLCAiPC92aWRlbz4iKQppZiAnc3JjPSJnYW1lLmpzIicgbm90IGluIGh0bWw6CiAgICBodG1sID0gaHRtbC5yZXBsYWNlKCI8L2JvZHk+IiwgJzxzY3JpcHQgc3JjPSJnYW1lLmpzIj48L3NjcmlwdD5cbjwvYm9keT4nKQppZiAiaW50cm8tYm9vdC5qcyIgbm90IGluIGh0bWw6CiAgICBodG1sID0gaHRtbC5yZXBsYWNlKCc8c2NyaXB0IHNyYz0iZ2FtZS5qcyI+PC9zY3JpcHQ+JywgJzxzY3JpcHQgc3JjPSJpbnRyby1ib290LmpzIj48L3NjcmlwdD5cbjxzY3JpcHQgc3JjPSJnYW1lLmpzIj48L3NjcmlwdD4nKQoKb2xkX2FydCA9ICgKICAgICJjb25zdCBsb2JieUFydCA9IG5ldyBJbWFnZSgpO1xuIgogICAgIiAgbG9iYnlBcnQub25sb2FkID0gKCkgPT4geyBpZiAoc3RhdGUubW9kZSA9PT0gXCJsb2JieVwiKSByZW5kZXIoKTsgfTtcbiIKICAgICIgIGxvYmJ5QXJ0LnNyYyA9IFwibG9iYnktYmcuanBnXCI7IgopCm5ld19hcnQgPSAiY29uc3QgbG9iYnlBcnQgPSBuZXcgSW1hZ2UoKTsiCmlmIG9sZF9hcnQgbm90IGluIGpzOgogICAgcmFpc2UgU3lzdGVtRXhpdCgibG9iYnlBcnQgYmxvY2sgbWlzc2luZyBpbiBnb29kIGdhbWUuanMiKQpqcyA9IGpzLnJlcGxhY2Uob2xkX2FydCwgbmV3X2FydCwgMSkKbWFya2VyID0gIiAgcmVuZGVyV2FsbGV0cygpO1xuIgppZiBtYXJrZXIgbm90IGluIGpzOgogICAgcmFpc2UgU3lzdGVtRXhpdCgicmVuZGVyV2FsbGV0cyBib290IG1pc3NpbmciKQpqcyA9IGpzLnJlcGxhY2UoCiAgICBtYXJrZXIsCiAgICAiICByZW5kZXJXYWxsZXRzKCk7XG4iCiAgICAiICB0cnkge1xuIgogICAgIiAgICBsb2JieUFydC5vbmxvYWQgPSAoKSA9PiB7IHRyeSB7IGlmIChzdGF0ZS5tb2RlID09PSBcImxvYmJ5XCIpIHJlbmRlcigpOyB9IGNhdGNoIChfKSB7fSB9O1xuIgogICAgIiAgICBsb2JieUFydC5zcmMgPSBcImxvYmJ5LWJnLmpwZ1wiO1xuIgogICAgIiAgfSBjYXRjaCAoXykge31cbiIsCiAgICAxLAopCgpjc3MgPSByZS5zdWIociJcLmludHJvIFx7W1xzXFNdKj9cblx9IiwgIi5pbnRybyB7IGRpc3BsYXk6IG5vbmUgIWltcG9ydGFudDsgfVxuIiwgY3NzLCBjb3VudD0xKQoKZm9yIHMgaW4gWyJoYXNUZXN0bmV0WGFtYW4iLCAiY2FzaE91dCIsICJPV05FUl9UUkVBU1VSWSIsICJyZW5kZXJXYWxsZXRzIiwgInBhaW50UHJldmlldyJdOgogICAgaWYgcyBub3QgaW4ganM6CiAgICAgICAgcmFpc2UgU3lzdGVtRXhpdCgibWlzc2luZyAiICsgcykKaWYgInN0YXJ0QXBleExvb3AiIGluIGpzOgogICAgcmFpc2UgU3lzdGVtRXhpdCgic3RhcnRBcGV4TG9vcCBzaG91bGQgbm90IGJlIGluIHJlc3RvcmVkIGdvb2QgYnVpbGQiKQoKKHJvb3QgLyAiaW5kZXguaHRtbCIpLndyaXRlX3RleHQoR0FURSkKKHJvb3QgLyAiYXBwLmh0bWwiKS53cml0ZV90ZXh0KGh0bWwpCihyb290IC8gImdhbWUuanMiKS53cml0ZV90ZXh0KGpzKQoocm9vdCAvICJzdHlsZXMuY3NzIikud3JpdGVfdGV4dChjc3MpCihyb290IC8gImludHJvLWJvb3QuanMiKS53cml0ZV90ZXh0KCIvKiBnYXRlIGVudHJ5IC0gbG9iYnkgaXMgYXBwLmh0bWwgKi9cbiIpCnByaW50KCJvayIsIGhhc2hsaWIuc2hhMjU2KGpzLmVuY29kZSgpKS5oZXhkaWdlc3QoKVs6MTBdLCAiYXBwIiwgbGVuKGh0bWwpLCAiZ2F0ZSIsIGxlbihHQVRFKSkK' | base64 -d > /tmp/restore_simple.py
+          python3 /tmp/restore_simple.py
+          mkdir -p apex-io/_patches
+          cp /tmp/restore_simple.py apex-io/_patches/restore_simple.py
+          # proofs
+          grep -q 'app.html' apex-io/index.html
+          ! grep -q 'game.js' apex-io/index.html
+          ! grep -q 'id="intro"' apex-io/app.html
+          grep -q 'wallet-grid' apex-io/app.html
+          grep -q 'skin-preview' apex-io/app.html
+          grep -q 'chat-form' apex-io/app.html
+          grep -q 'treasury-in' apex-io/app.html
+          grep -q hasTestnetXaman apex-io/game.js
+          grep -q cashOut apex-io/game.js
+          grep -q OWNER_TREASURY apex-io/game.js
+          ! grep -q startApexLoop apex-io/game.js
+          grep -q 'requestAnimationFrame(loop)' apex-io/game.js
+          test $(wc -c < apex-io/index.html) -lt 2000
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apex-io/index.html apex-io/app.html apex-io/game.js apex-io/styles.css apex-io/intro-boot.js apex-io/_patches/restore_simple.py
+          git add -u apex-io/_good_game.js apex-io/_good_index.html apex-io/_good_styles.css 2>/dev/null || true
+          rm -f apex-io/_good_game.js apex-io/_good_index.html apex-io/_good_styles.css
+          git diff --cached --quiet && echo nochange && exit 0
+          git commit -m "Simple restore: known-good lobby (192e9905) behind Enter gate; Testnet intact"
+          git push
