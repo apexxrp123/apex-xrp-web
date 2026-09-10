@@ -1,1 +1,1 @@
-__LOAD_FROM_FILE__:/tmp/game_js_content.txt
+file:///tmp/game_js_content.txt
