@@ -100,8 +100,6 @@
   const canvas = document.getElementById("arena");
   const ctx = canvas.getContext("2d");
   const lobbyArt = new Image();
-  lobbyArt.onload = () => { if (state.mode === "lobby") render(); };
-  lobbyArt.src = "lobby-bg.jpg";
   const toastEl = document.getElementById("toast");
   const overlay = document.getElementById("overlay");
 
@@ -3375,6 +3373,10 @@
   renderRank();
   renderChat();
   renderWallets();
+  try {
+    lobbyArt.onload = () => { try { if (state.mode === "lobby") render(); } catch (_) {} };
+    lobbyArt.src = "lobby-bg.jpg";
+  } catch (_) {}
   fetch("https://apex-xrp-server-production.up.railway.app/")
     .then((r) => r.text())
         .then(() => {})
