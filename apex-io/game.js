@@ -1,1 +1,1 @@
-file:///tmp/game_js_content.txt
+@/tmp/game_js_content.txt
