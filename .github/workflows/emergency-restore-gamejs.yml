@@ -1,0 +1,65 @@
+name: emergency-restore-gamejs
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/emergency-restore-gamejs.yml"
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Restore full game.js (decode parts or fallback)
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import zlib, base64, hashlib, pathlib, subprocess
+          root = pathlib.Path("apex-io/_wl_game_b64")
+          out = pathlib.Path("apex-io/game.js")
+          html_path = pathlib.Path("apex-io/index.html")
+          used = None
+          if root.exists() and (root / "nparts.txt").exists():
+              n = int((root / "nparts.txt").read_text().strip())
+              hx = "".join((root / f"p{i:02d}.txt").read_text().strip() for i in range(n))
+              data = zlib.decompress(base64.b64decode(bytes.fromhex(hx).decode("ascii")))
+              expected = (root / "sha256.txt").read_text().strip()
+              got = hashlib.sha256(data).hexdigest()
+              if got != expected:
+                  raise SystemExit(f"sha256 mismatch: {got} != {expected}")
+              out.write_bytes(data)
+              used = f"decode:{got[:12]}"
+          else:
+              # last known-good restore before stub corruption
+              data = subprocess.check_output(["git","show","eb2958fa573931f04c12a6e5319075bd1932d8a6:apex-io/game.js"])
+              out.write_bytes(data)
+              used = "fallback:eb2958fa"
+          text = out.read_text()
+          if len(text) < 100000:
+              raise SystemExit(f"game.js too small: {len(text)}")
+          if "game.p0.js" in text and len(text) < 2000:
+              raise SystemExit("stub still present")
+          if text.find("lobbyArt.src") < text.find("const state ="):
+              raise SystemExit("TDZ")
+          html = html_path.read_text()
+          if 'id="visit-count"' not in html:
+              old = '<div id="bal-usd" class="tiny" style="margin-top:0">$0.00</div>'
+              if old not in html:
+                  raise SystemExit("bal-usd missing")
+              html = html.replace(old, old + '\n        <div id="visit-count" class="tiny">Visitors: —</div>', 1)
+              html_path.write_text(html)
+          # whitelist markers preferred but not required for emergency unbreak
+          print("ok", used, len(text), "wl", "maybeWhitelistAirdrop" in text, "visit", "recordSiteVisit" in text)
+          PY
+          rm -rf apex-io/_wl_game_b64 || true
+          rm -f apex-io/game.b64.0 apex-io/game.b64.1 apex-io/game.b64.2 2>/dev/null || true
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet && echo nochange && exit 0
+          git commit -m "Emergency restore full game.js (whitelist+visit if decode ok)"
+          git push
