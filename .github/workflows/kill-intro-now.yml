@@ -1,0 +1,77 @@
+name: kill-intro-now
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/kill-intro-now.yml"
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Strip frozen intro; keep lobby
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+          import re
+          html_path = Path("apex-io/index.html")
+          css_path = Path("apex-io/styles.css")
+          js_path = Path("apex-io/game.js")
+          html = html_path.read_text()
+          html2, n = re.subn(
+              r'\s*<div id="intro"[\s\S]*?</div>\s*(?=<audio id="hiss-audio"|<script)',
+              "\n  ",
+              html,
+              count=1,
+          )
+          if n != 1:
+              html2, n = re.subn(r'<div id="intro"[\s\S]*?</button>\s*</div>\s*', "", html, count=1)
+          if n != 1 and 'id="intro"' in html:
+              raise SystemExit("failed to strip intro")
+          html = html2
+          html = html.replace("waiting-intro", "")
+          if 'id="intro"' in html:
+              raise SystemExit("intro still present")
+          html_path.write_text(html)
+          css = css_path.read_text()
+          if ".intro { display: none !important; }" not in css:
+              css = ".intro { display: none !important; }\n" + css
+          css_path.write_text(css)
+          js = js_path.read_text()
+          old = "  runBiteIntro();\n"
+          new = (
+              "  try {\n"
+              "    const wrap = document.getElementById(\"intro\");\n"
+              "    const app = document.getElementById(\"app\");\n"
+              "    if (wrap) wrap.remove();\n"
+              "    if (app) app.classList.remove(\"waiting-intro\");\n"
+              "  } catch (_) {}\n"
+              "  try { if (typeof recordSiteVisit === \"function\") recordSiteVisit(); } catch (_) {}\n"
+          )
+          if old not in js:
+              raise SystemExit("runBiteIntro call missing")
+          js = js.replace(old, new, 1)
+          js_path.write_text(js)
+          for s in ["hasTestnetXaman", "cashOut", "OWNER_TREASURY", "renderWallets", "paintPreview"]:
+              if s not in js:
+                  raise SystemExit("missing " + s)
+          if "wallet-grid" not in html or "skin-preview" not in html:
+              raise SystemExit("lobby UI missing")
+          print("ok", len(html), len(js))
+          PY
+          grep -q 'wallet-grid' apex-io/index.html
+          grep -q 'skin-preview' apex-io/index.html
+          ! grep -q 'id="intro"' apex-io/index.html
+          ! grep -q waiting-intro apex-io/index.html
+          grep -q hasTestnetXaman apex-io/game.js
+          grep -q cashOut apex-io/game.js
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apex-io/index.html apex-io/styles.css apex-io/game.js
+          git diff --cached --quiet && echo nochange && exit 0
+          git commit -m "Kill frozen intro splash; keep pre-AwSnap lobby + Testnet"
+          git push
