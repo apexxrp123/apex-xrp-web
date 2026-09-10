@@ -1,0 +1,55 @@
+name: ship-restore-wl
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "apex-io/_wl_game_b64/**"
+      - ".github/workflows/ship-restore-wl.yml"
+jobs:
+  decode:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Decode game.js + ensure visit-count html
+        run: |
+          set -euo pipefail
+          python3 - <<'PY2'
+          import zlib, base64, hashlib, pathlib, re
+          root = pathlib.Path("apex-io/_wl_game_b64")
+          n = int((root / "nparts.txt").read_text().strip())
+          hx = "".join((root / f"p{i:02d}.txt").read_text().strip() for i in range(n))
+          data = zlib.decompress(base64.b64decode(bytes.fromhex(hx).decode("ascii")))
+          expected = (root / "sha256.txt").read_text().strip()
+          got = hashlib.sha256(data).hexdigest()
+          if got != expected:
+              raise SystemExit(f"sha256 mismatch: {got} != {expected}")
+          pathlib.Path("apex-io/game.js").write_bytes(data)
+          html_path = pathlib.Path("apex-io/index.html")
+          html = html_path.read_text()
+          if 'id="visit-count"' not in html:
+              old = '<div id="bal-usd" class="tiny" style="margin-top:0">$0.00</div>'
+              if old not in html:
+                  raise SystemExit("bal-usd missing")
+              html = html.replace(old, old + '\n        <div id="visit-count" class="tiny">Visitors: —</div>', 1)
+              html_path.write_text(html)
+          text = data.decode()
+          for s in ["maybeWhitelistAirdrop", "recordSiteVisit", "/airdrop/whitelist", "/stats/visit", "drawTxHash"]:
+              if s not in text:
+                  raise SystemExit("missing "+s)
+          if text.find("lobbyArt.src") < text.find("const state ="):
+              raise SystemExit("TDZ")
+          if 'id="intro"' in html_path.read_text():
+              raise SystemExit("intro present")
+          print("ok", got, len(data))
+          PY2
+          rm -rf apex-io/_wl_game_b64
+          rm -f apex-io/game.b64.0 apex-io/game.b64.1 apex-io/game.b64.2 2>/dev/null || true
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet && echo nochange && exit 0
+          git commit -m "Restore game.js: L3 whitelist + visitor counter (fix corrupt stub)"
+          git push
