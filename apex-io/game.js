@@ -3052,10 +3052,6 @@
     syncNetworkUi();
     renderMeta();
     renderWallets();
-  try {
-    lobbyArt.onload = () => { try { if (state.mode === "lobby") render(); } catch (_) {} };
-    lobbyArt.src = "lobby-bg.jpg";
-  } catch (_) {}
     toast(state.network === "testnet" ? "Network: XRPL Testnet" : "Network: simulated");
   };
   syncNetworkUi();
@@ -3377,6 +3373,10 @@
   renderRank();
   renderChat();
   renderWallets();
+  try {
+    lobbyArt.onload = () => { try { if (state.mode === "lobby") render(); } catch (_) {} };
+    lobbyArt.src = "lobby-bg.jpg";
+  } catch (_) {}
   fetch("https://apex-xrp-server-production.up.railway.app/")
     .then((r) => r.text())
         .then(() => {})
