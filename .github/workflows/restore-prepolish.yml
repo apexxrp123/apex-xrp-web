@@ -1,0 +1,42 @@
+name: restore-prepolish
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/restore-prepolish.yml"
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore pre-Polish lobby + crash-light
+        run: |
+          set -euo pipefail
+          GOOD=f8ef713c5161c8b0e4d4b2b5abe2f96d9f3702c7
+          curl -fsSL -o apex-io/game.js "https://raw.githubusercontent.com/apexxrp123/apex-xrp-web/$GOOD/apex-io/game.js"
+          curl -fsSL -o apex-io/index.html "https://raw.githubusercontent.com/apexxrp123/apex-xrp-web/$GOOD/apex-io/index.html"
+          curl -fsSL -o apex-io/styles.css "https://raw.githubusercontent.com/apexxrp123/apex-xrp-web/$GOOD/apex-io/styles.css"
+          echo 'ZnJvbSBwYXRobGliIGltcG9ydCBQYXRoCmltcG9ydCByZSwgaGFzaGxpYgpHT09EX05PVEUgPSAiZjhlZjcxM2M1MTYxYzhiMGU0ZDRiMmI1YWJlMmY5NmQ5ZjM3MDJjNyIKcm9vdCA9IFBhdGgoImFwZXgtaW8iKQpqcyA9IChyb290IC8gImdhbWUuanMiKS5yZWFkX3RleHQoKQpodG1sID0gKHJvb3QgLyAiaW5kZXguaHRtbCIpLnJlYWRfdGV4dCgpCmNzcyA9IChyb290IC8gInN0eWxlcy5jc3MiKS5yZWFkX3RleHQoKQoKaHRtbDIsIG4gPSByZS5zdWJuKHInXHMqPGRpdiBpZD0iaW50cm8iW1xzXFNdKj88L2Rpdj5ccyooPz08YXVkaW8gaWQ9Imhpc3MtYXVkaW8ifDxzY3JpcHQpJywgIlxuICAiLCBodG1sLCBjb3VudD0xKQppZiBuICE9IDE6CiAgICBodG1sMiwgbiA9IHJlLnN1Ym4ocic8ZGl2IGlkPSJpbnRybyJbXHNcU10qPzwvYnV0dG9uPlxzKjwvZGl2PlxzKicsICIiLCBodG1sLCBjb3VudD0xKQppZiBuICE9IDEgYW5kICdpZD0iaW50cm8iJyBpbiBodG1sOgogICAgcmFpc2UgU3lzdGVtRXhpdCgiaW50cm8gc3RyaXAgZmFpbGVkIikKaHRtbCA9IGh0bWwyLnJlcGxhY2UoIndhaXRpbmctaW50cm8iLCAiIikKaWYgJ2lkPSJpbnRybyInIGluIGh0bWw6CiAgICByYWlzZSBTeXN0ZW1FeGl0KCJpbnRybyByZW1haW5zIikKaHRtbCA9IHJlLnN1YihyJzx2aWRlbyBpZD0iY29pbC12aWQiW14+XSo+XHMqKD86PC92aWRlbz4pPycsICc8dmlkZW8gaWQ9ImNvaWwtdmlkIiBwbGF5c2lubGluZSBtdXRlZCBwcmVsb2FkPSJub25lIj48L3ZpZGVvPicsIGh0bWwsIGNvdW50PTEpCmh0bWwgPSByZS5zdWIocic8YXVkaW8gaWQ9Imhpc3MtYXVkaW8iW14+XSo+XHMqKD86PC9hdWRpbz4pPycsICc8YXVkaW8gaWQ9Imhpc3MtYXVkaW8iIHNyYz0iaGlzcy5tcDMiIHByZWxvYWQ9Im5vbmUiPjwvYXVkaW8+JywgaHRtbCwgY291bnQ9MSkKCm9sZCA9ICgKICAgICJjb25zdCBsb2JieUFydCA9IG5ldyBJbWFnZSgpO1xuIgogICAgIiAgbG9iYnlBcnQub25sb2FkID0gKCkgPT4geyBpZiAoc3RhdGUubW9kZSA9PT0gXCJsb2JieVwiKSByZW5kZXIoKTsgfTtcbiIKICAgICIgIGxvYmJ5QXJ0LnNyYyA9IFwibG9iYnktYmcuanBnXCI7IgopCmlmIG9sZCBub3QgaW4ganM6CiAgICByYWlzZSBTeXN0ZW1FeGl0KCJsb2JieUFydCBibG9jayBtaXNzaW5nIikKanMgPSBqcy5yZXBsYWNlKG9sZCwgImNvbnN0IGxvYmJ5QXJ0ID0gbmV3IEltYWdlKCk7IiwgMSkKbWFya2VyID0gIiAgcmVuZGVyV2FsbGV0cygpO1xuICBmZXRjaCgiCmlmIG1hcmtlciBub3QgaW4ganM6CiAgICByYWlzZSBTeXN0ZW1FeGl0KCJib290IG1hcmtlciBtaXNzaW5nIikKanMgPSBqcy5yZXBsYWNlKAogICAgbWFya2VyLAogICAgIiAgcmVuZGVyV2FsbGV0cygpO1xuIgogICAgIiAgdHJ5IHtcbiIKICAgICIgICAgbG9iYnlBcnQub25sb2FkID0gKCkgPT4geyB0cnkgeyBpZiAoc3RhdGUubW9kZSA9PT0gXCJsb2JieVwiKSByZW5kZXIoKTsgfSBjYXRjaCAoXykge30gfTtcbiIKICAgICIgICAgbG9iYnlBcnQuc3JjID0gXCJsb2JieS1iZy5qcGdcIjtcbiIKICAgICIgIH0gY2F0Y2ggKF8pIHt9XG4iCiAgICAiICBmZXRjaCgiLAogICAgMSwKKQppZiBqcy5maW5kKCJsb2JieUFydC5zcmMiKSA8IGpzLmZpbmQoImNvbnN0IHN0YXRlID0iKToKICAgIHJhaXNlIFN5c3RlbUV4aXQoIlREWiBzdGlsbCBwcmVzZW50IikKaWYgInJlbmRlck1ldGEoKTtcbiAgICByZW5kZXJXYWxsZXRzKCk7XG4gIHRyeSIgaW4ganM6CiAgICByYWlzZSBTeXN0ZW1FeGl0KCJiYWQgb25jaGFuZ2UgYXR0YWNoIikKCmNzcyA9IHJlLnN1YihyIlxzKmJhY2tkcm9wLWZpbHRlcjpccypbXjtdKzsiLCAiIiwgY3NzKQpjc3MgPSAiLmludHJvIHsgZGlzcGxheTogbm9uZSAhaW1wb3J0YW50OyB9XG5odG1sLGJvZHl7YmFja2dyb3VuZDojMDMwODA2IWltcG9ydGFudDt9XG4iICsgY3NzCgpmb3IgcyBpbiBbImhhc1Rlc3RuZXRYYW1hbiIsICJjYXNoT3V0IiwgIk9XTkVSX1RSRUFTVVJZIiwgInJlbmRlcldhbGxldHMiLCAicGFpbnRQcmV2aWV3IiwgInJlbmRlckNoYXQiLCAicmVuZGVyUmFuayJdOgogICAgaWYgcyBub3QgaW4ganM6CiAgICAgICAgcmFpc2UgU3lzdGVtRXhpdCgibWlzc2luZyAiICsgcykKZm9yIHMgaW4gWyJ3YWxsZXQtZ3JpZCIsICJza2luLXByZXZpZXciLCAiY2hhdC1mb3JtIl06CiAgICBpZiBzIG5vdCBpbiBodG1sOgogICAgICAgIHJhaXNlIFN5c3RlbUV4aXQoIm1pc3NpbmcgdWkgIiArIHMpCgoocm9vdCAvICJpbmRleC5odG1sIikud3JpdGVfdGV4dChodG1sKQoocm9vdCAvICJnYW1lLmpzIikud3JpdGVfdGV4dChqcykKKHJvb3QgLyAic3R5bGVzLmNzcyIpLndyaXRlX3RleHQoY3NzKQoocm9vdCAvICJhcHAuaHRtbCIpLndyaXRlX3RleHQoCiAgICAnPCFET0NUWVBFIGh0bWw+PGh0bWw+PGhlYWQ+PG1ldGEgY2hhcnNldD0iVVRGLTgiLz48bWV0YSBodHRwLWVxdWl2PSJyZWZyZXNoIiBjb250ZW50PSIwO3VybD1pbmRleC5odG1sIi8+PHRpdGxlPkFwZXguWFJQPC90aXRsZT48L2hlYWQ+PGJvZHk+PGEgaHJlZj0iaW5kZXguaHRtbCI+T3BlbiBsb2JieTwvYT48L2JvZHk+PC9odG1sPlxuJwopCihyb290IC8gImludHJvLWJvb3QuanMiKS53cml0ZV90ZXh0KCIvKiB1bnVzZWQgKi9cbiIpCnByaW50KCJvayIsIEdPT0RfTk9URSwgaGFzaGxpYi5zaGEyNTYoanMuZW5jb2RlKCkpLmhleGRpZ2VzdCgpWzoxMF0sIGxlbihodG1sKSwgbGVuKGpzKSkK' | base64 -d > /tmp/restore_prepolish.py
+          python3 /tmp/restore_prepolish.py
+          mkdir -p apex-io/_patches
+          cp /tmp/restore_prepolish.py apex-io/_patches/restore_prepolish.py
+          grep -q wallet-grid apex-io/index.html
+          grep -q skin-preview apex-io/index.html
+          grep -q chat-form apex-io/index.html
+          ! grep -q 'id="intro"' apex-io/index.html
+          ! grep -q waiting-intro apex-io/index.html
+          grep -q hasTestnetXaman apex-io/game.js
+          grep -q cashOut apex-io/game.js
+          ! grep -q startApexLoop apex-io/game.js
+          ! grep -q backdrop-filter apex-io/styles.css
+          python3 -c "from pathlib import Path; js=Path('apex-io/game.js').read_text(); assert js.find('lobbyArt.src')>js.find('const state =')"
+          test $(wc -c < apex-io/index.html) -gt 5000
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apex-io/index.html apex-io/game.js apex-io/styles.css apex-io/app.html apex-io/intro-boot.js apex-io/_patches/restore_prepolish.py
+          git diff --cached --quiet && echo nochange && exit 0
+          git commit -m "Restore pre-Polish lobby (f8ef713) + crash-light; Testnet intact; no rebuild"
+          git push
