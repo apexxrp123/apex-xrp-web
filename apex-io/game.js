@@ -557,4 +557,2984 @@
   }
   function creditContract(kind, amt) {
     ensureContracts();
-    const bags = [state.meta.c
+    const bags = [state.meta.contracts, state.meta.weekContracts || []];
+    for (const bag of bags) {
+    for (const x of bag) {
+      if (x.kind !== kind || x.have >= x.need) continue;
+      x.have = Math.min(x.need, x.have + amt);
+      if (x.have >= x.need) {
+        state.exp += x.exp;
+        state.meta.seasonExp += x.exp;
+        if (String(x.id || "").startsWith("w-")) {
+          state.meta.tickets = (state.meta.tickets || 0) + 1;
+          state.meta.ticketIds = state.meta.ticketIds || [];
+          state.meta.ticketIds.push(1000 + state.meta.tickets + Math.floor(Math.random() * 8000));
+          state.meta.seasonPot = +(state.meta.seasonPot + 0.05).toFixed(3);
+          toast("Weekly hunt done · ticket #" + state.meta.tickets);
+        } else {
+          toast("Hunt done +" + x.exp + " EXP");
+        }
+        pushChat("den", "Hunt complete: " + x.t + " (+" + x.exp + " EXP)", true);
+      }
+    }
+    }
+  }
+  function maybeDropSkin(cashed, net, w) {
+    const add = (id, label) => {
+      if (state.meta.unlocked.includes(id)) return;
+      state.meta.unlocked.push(id);
+      toast("Skin flake: " + label);
+      pushChat("den", "Unlocked " + label, true);
+    };
+    if (cashed && net >= 20) add("albino", "Albino hood");
+    if (cashed && (w.matchTrees || 0) >= 8) add("moss", "Moss coil");
+    if (rankOf(state.exp).cur.name === "Last Hiss") add("goldhood", "Gold hood");
+  }
+
+
+  function effectiveNetwork() {
+    if (state.wallet && state.wallet.network === "testnet") return "testnet";
+    return state.network === "testnet" ? "testnet" : "simulated";
+  }
+  function hasTestnetXaman() {
+    return !!(state.wallet && state.wallet.id === "xaman" && state.wallet.address && state.wallet.network === "testnet");
+  }
+  let _balFetchAt = 0;
+  let _balRetryTimers = [];
+  let _balGen = 0;
+  let _balAddr = null;
+  function clearBalanceRetries() {
+    _balRetryTimers.forEach((t) => clearTimeout(t));
+    _balRetryTimers = [];
+  }
+  function paintWalletBalance() {
+    renderMeta();
+    const status = document.getElementById("wallet-status");
+    if (status && state.wallet && state.wallet.network === "testnet") {
+      status.textContent =
+        state.wallet.name +
+        " · " +
+        state.wallet.address.slice(0, 8) +
+        "…" +
+        state.wallet.address.slice(-5) +
+        " · " +
+        state.balanceXrp.toFixed(3) +
+        " XRP Testnet";
+    }
+  }
+  async function refreshTestnetWalletBalance(force) {
+    if (!hasTestnetXaman()) return null;
+    const now = Date.now();
+    if (!force && now - _balFetchAt < 8000) return null;
+    _balFetchAt = now;
+    const gen = ++_balGen;
+    try {
+      const res = await fetch(DEN_SERVER + "/xrp/balance?address=" + encodeURIComponent(state.wallet.address));
+      const body = await res.json().catch(() => ({}));
+      if (gen !== _balGen) return null; // newer refresh won the race
+      if (!body || !body.ok || typeof body.xrp !== "number") return null;
+      // Prefer spendable (ledger − reserve); server sets xrp to spendable when available.
+      const shown = typeof body.spendableXrp === "number" ? body.spendableXrp : body.xrp;
+      state.balanceXrp = +Number(shown).toFixed(6);
+      save();
+      paintWalletBalance();
+      return body;
+    } catch (_) {
+      return null;
+    }
+  }
+  /** Optimistic local tweak, then ledger confirm with staggered retries. */
+  function scheduleBalanceRefresh(optDeltaXrp) {
+    if (!hasTestnetXaman()) return;
+    clearBalanceRetries();
+    if (typeof optDeltaXrp === "number" && Number.isFinite(optDeltaXrp) && optDeltaXrp !== 0) {
+      state.balanceXrp = +Math.max(0, state.balanceXrp + optDeltaXrp).toFixed(6);
+      save();
+      paintWalletBalance();
+    }
+    refreshTestnetWalletBalance(true);
+    [2000, 5000, 10000, 20000].forEach((ms) => {
+      _balRetryTimers.push(setTimeout(() => refreshTestnetWalletBalance(true), ms));
+    });
+  }
+  function clearMatchLock() {
+    state.lastLockTx = null;
+    try { save(); } catch (_) {}
+  }
+  function syncNetworkUi() {
+    const netSel = document.getElementById("network");
+    if (netSel && document.activeElement !== netSel) netSel.value = state.network;
+    const add = document.getElementById("add-funds");
+    if (add) add.style.display = effectiveNetwork() === "testnet" ? "none" : "";
+  }
+  function gateTestnetHunt() {
+    if (effectiveNetwork() !== "testnet") return true;
+    if (hasTestnetXaman()) return true;
+    toast("Link Xaman (Testnet) before entering the den.");
+    return false;
+  }
+
+  /** Testnet Jungle buy-in: 1 XRP Payment to pot via Xaman. Watch/simulated skip. */
+  function ensureJungleLock() {
+    return new Promise((resolve) => {
+      if (effectiveNetwork() !== "testnet") {
+        resolve({ ok: true, skipped: true });
+        return;
+      }
+      if (!hasTestnetXaman()) {
+        toast("Link Xaman (Testnet) before entering the den.");
+        resolve({ ok: false, reason: "no-xaman" });
+        return;
+      }
+      let pollTimer = null;
+      const stopPoll = () => {
+        if (pollTimer) {
+          clearInterval(pollTimer);
+          pollTimer = null;
+        }
+      };
+      const finish = (result) => {
+        stopPoll();
+        resolve(result);
+      };
+      const closeModal = () => {
+        stopPoll();
+        overlay.classList.add("hidden");
+      };
+
+      overlay.classList.remove("hidden");
+      const box = document.getElementById("modal-body");
+      box.innerHTML = `
+        <h3>Jungle lock</h3>
+        <p>Approve 1 XRP Testnet Payment to the den pot in Xaman. Mainnet send is off.</p>
+        <p class="tiny" id="xaman-wait">Requesting Payment…</p>
+        <div id="xaman-qr-wrap" style="text-align:center;margin:12px 0"></div>
+        <p class="tiny"><a id="xaman-open" href="#" rel="noopener noreferrer">Open Xaman</a>
+        · <a id="xaman-deep" href="#" rel="noopener noreferrer">Open sign link</a></p>
+        <p class="tiny" id="xaman-url" style="word-break:break-all;margin-top:8px"></p>
+        <button class="btn ghost" id="xaman-copy" type="button" style="margin-top:6px">Copy sign URL</button>
+        <button class="btn ghost" id="wc-no">Cancel</button>`;
+      document.getElementById("wc-no").onclick = () => {
+        closeModal();
+        toast("Payment lock cancelled");
+        finish({ ok: false, reason: "cancelled" });
+      };
+
+      (async () => {
+        try {
+          const res = await fetch(DEN_SERVER + "/den/lock", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ address: state.wallet && state.wallet.address }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (res.status === 503) {
+            const reason = data.reason || "Den lock unavailable";
+            toast(reason);
+            const wait = document.getElementById("xaman-wait");
+            if (wait) wait.textContent = reason;
+            finish({ ok: false, reason });
+            return;
+          }
+          if (!res.ok || !data.uuid) {
+            const reason = data.reason || "Could not start Jungle Payment lock.";
+            toast(reason);
+            const wait = document.getElementById("xaman-wait");
+            if (wait) wait.textContent = reason;
+            finish({ ok: false, reason });
+            return;
+          }
+          const deep = data.deepLink || ("https://xumm.app/sign/" + data.uuid);
+          const deepHttps = deep.indexOf("http") === 0 ? deep : ("https://xumm.app/sign/" + data.uuid);
+          const deepApp = "xumm://xumm.app/sign/" + data.uuid;
+          const isPhone = ("ontouchstart" in window) || (window.matchMedia && window.matchMedia("(max-width: 900px)").matches);
+          const openA = document.getElementById("xaman-open");
+          const deepA = document.getElementById("xaman-deep");
+          if (openA) {
+            openA.href = isPhone ? deepApp : deepHttps;
+            if (isPhone) openA.target = "_blank";
+            else openA.removeAttribute("target");
+            openA.rel = "noopener noreferrer";
+            openA.removeAttribute("onclick");
+          }
+          if (deepA) {
+            deepA.href = deepHttps;
+            deepA.target = "_blank";
+            deepA.rel = "noopener noreferrer";
+            deepA.removeAttribute("onclick");
+          }
+          const urlEl = document.getElementById("xaman-url");
+          if (urlEl) urlEl.textContent = deepHttps;
+          const copyBtn = document.getElementById("xaman-copy");
+          if (copyBtn) {
+            copyBtn.onclick = () => {
+              if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(deepHttps).then(() => toast("Sign URL copied")).catch(() => toast("Copy failed"));
+              } else {
+                toast(deepHttps);
+              }
+            };
+          }
+          const wrap = document.getElementById("xaman-qr-wrap");
+          if (wrap) {
+            const proxyQr = DEN_SERVER + "/den/lock/" + encodeURIComponent(data.uuid) + "/qr";
+            const fallback = "https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=" + encodeURIComponent(deepHttps);
+            wrap.innerHTML = `<img alt="Xaman QR" src="${proxyQr}" referrerpolicy="no-referrer" style="max-width:220px;height:auto;background:#fff;padding:8px;border-radius:8px" />`;
+            const img = wrap.querySelector("img");
+            if (img) {
+              img.onerror = () => {
+                img.onerror = null;
+                img.src = fallback;
+              };
+            }
+          }
+          const waitEl = document.getElementById("xaman-wait");
+          if (waitEl) waitEl.textContent = "Waiting for 1 XRP Testnet Payment in Xaman…";
+
+          let ticks = 0;
+          pollTimer = setInterval(async () => {
+            ticks += 1;
+            if (ticks > 150) { // ~5 min at 2s
+              stopPoll();
+              toast("Payment lock timed out");
+              const w = document.getElementById("xaman-wait");
+              if (w) w.textContent = "Timed out.";
+              finish({ ok: false, reason: "timeout" });
+              return;
+            }
+            try {
+              const pr = await fetch(DEN_SERVER + "/den/lock/" + encodeURIComponent(data.uuid));
+              const body = await pr.json().catch(() => ({}));
+              if (body.pending) return;
+              if (body.ok && body.txHash) {
+                state.lastLockTx = body.txHash;
+                try { save(); } catch (_) {}
+                closeModal();
+                if (typeof pushChat === "function") {
+                  pushChat("den", "Jungle lock tx " + body.txHash, true);
+                } else {
+                  toast("Lock tx " + body.txHash);
+                }
+                scheduleBalanceRefresh(-1);
+                finish({ ok: true, txHash: body.txHash });
+                return;
+              }
+              if (body.ok === false && body.reason && body.reason !== "waiting") {
+                stopPoll();
+                toast(body.reason);
+                const w = document.getElementById("xaman-wait");
+                if (w) w.textContent = body.reason;
+                finish({ ok: false, reason: body.reason });
+              }
+            } catch (_) {
+              /* keep polling through blips */
+            }
+          }, 2000);
+        } catch (_) {
+          toast("Could not reach den server for Jungle lock.");
+          const w = document.getElementById("xaman-wait");
+          if (w) w.textContent = "Network error talking to den server.";
+          finish({ ok: false, reason: "network" });
+        }
+      })();
+    });
+  }
+
+  async function startMatch(opts) {
+    const duel = opts && opts.duel;
+    const allIn = !duel && !!(document.getElementById("opt-allin") && document.getElementById("opt-allin").checked);
+    const watchOnly0 = !!(opts && opts.watch);
+    if (!watchOnly0 && !gateTestnetHunt()) return;
+    // Paid Testnet den: always a fresh Xaman Payment — never reuse skipLock / prior lockTx.
+    if (!watchOnly0 && effectiveNetwork() === "testnet") {
+      clearMatchLock();
+      const lock = await ensureJungleLock();
+      if (!lock || !lock.ok) return;
+    }
+    if (opts && opts.watch && state.mode === "play" && state.world && !state.world.watch && state.world.snakes[0] && state.world.snakes[0].alive) {
+      toast("Watch after you drop.");
+      return;
+    }
+    if (!opts || !opts.watch) {
+      if (state.world && state.mode === "play" && state.world.watch) {
+        toast("Leave the den before you hunt.");
+        return;
+      }
+    }
+    const watchOnly = !!(opts && opts.watch);
+    const insure = !watchOnly && !duel && !!(document.getElementById("opt-insure") && document.getElementById("opt-insure").checked);
+    const side = watchOnly || duel ? 0 : clampNum((document.getElementById("side-bet") || {}).value, 0, 0, 0.25);
+    const stake = watchOnly ? 0 : (duel ? duel.amt : state.tier.stakeXrp * (allIn ? 2 : 1));
+    if (!duel && !watchOnly) {
+      if (insure && state.exp < 40) { toast("Insurance needs 40 EXP."); return; }
+      if (hasTestnetXaman()) {
+        // Stake is paid on-ledger via Jungle lock; keep balanceXrp = Testnet wallet.
+        if (insure) state.exp -= 40;
+      } else {
+        if (state.balanceXrp < stake + side) {
+          toast("Not enough simulated XRP for this server.");
+          return;
+        }
+        state.balanceXrp = +(state.balanceXrp - stake - side).toFixed(6);
+        if (insure) state.exp -= 40;
+      }
+    }
+    state.matchKills = 0;
+    save();
+
+    const spec = SPECIES.find((s) => s.id === state.skin.species) || SPECIES[2];
+    const map = duel ? 2800 : state.tier.map;
+    const player = makeSnake({
+      id: "you",
+      name: state.playerName,
+      isPlayer: true,
+      x: map / 2 + (state.playerName.charCodeAt(0) % 7 - 3) * 80,
+      y: map / 2 + (state.playerName.charCodeAt(1) % 7 - 3) * 80,
+      len: 18,
+      a: state.skin.a,
+      b: state.skin.b,
+      pattern: state.skin.pattern,
+      eyes: state.skin.eyes,
+      species: spec.id,
+      horn: state.skin.horn || "none",
+      tail: state.skin.tail || "none",
+      stake,
+      speed: 2.4 * spec.speed,
+    });
+
+    const snakes = [player];
+    if (!duel) for (let i = 0; i < state.tier.bots; i++) { 
+      const pal = PRESET_SKINS[i % PRESET_SKINS.length];
+      snakes.push(
+        makeSnake({
+          id: "bot" + i,
+          name: BOT_NAMES[i % BOT_NAMES.length],
+          x: Math.random() * map,
+          y: Math.random() * map,
+          len: 12 + Math.floor(Math.random() * 24),
+          a: pal.a,
+          b: pal.b,
+          pattern: PATTERNS[i % PATTERNS.length],
+          species: SPECIES[i % SPECIES.length].id,
+          stake: 0,
+          speed: 2.1 + Math.random() * 0.5,
+        })
+      );
+    }
+
+    const food = [];
+    for (let i = 0; i < 280; i++) food.push(foodSpot(map, i));
+
+    const trees = plantTrees(map, TRAILER ? Math.min(12, state.tier.trees || 0) : (state.tier.trees || 0));
+    state.world = {
+      map,
+      biome: state.tier.biome,
+      trees,
+      snakes,
+      food,
+      cam: { x: player.pts[0].x, y: player.pts[0].y },
+      prizePool: stake,
+      duel: duel ? duel.name : null,
+      dropped: [],
+      tape: [],
+      grace: true,
+      startedAt: performance.now(),
+      starveAt: 0,
+      allIn,
+      insure,
+      side,
+      sideWon: false,
+      matchTrees: 0,
+      bounty: null,
+      emoteUntil: 0,
+      bunnyGone: -1,
+    };
+    if (state.meta.hotFang) {
+      player.bounty = true;
+      state.world.bounty = player.name;
+      pushChat("den", "Bounty: " + player.name + " is on a cash-out streak. Drop them for extra XRP.", true);
+      toast("Hot fang — bounty is on you.");
+    } else {
+      toast(state.tier.name + " — bots drop length only. Yellow XRP is players.");
+    }
+    setTimeout(() => {
+      if (state.world) state.world.grace = false;
+    }, 2200);
+    if (state.challengePot) {
+      pushChat("den", "Challenge pot " + state.challengePot + " XRP is in this den.", true);
+      state.challengePot = 0;
+    }
+    state.mode = "play";
+    overlay.classList.add("hidden");
+    setPlayingLayout(true);
+    applyWatchUi(false);
+    resize();
+    renderMeta();
+    toast(state.tier.name + " — hunt. Trees shove; bodies still kill.");
+  }
+
+  function killSnake(s, world) {
+    if (!s.alive) return;
+    // Payout already in flight — stay alive until ledger returns (no kill-cam / double outcome).
+    if (s.isPlayer && world && world._cashOutBusy) return;
+    s.alive = false;
+    if (s.isPlayer && window.apexSock && window.apexSock.readyState === 1) {
+      window.apexSock.send(JSON.stringify({ t: "dead", name: state.playerName, by: s.killedBy || "", stake: s.stake || 0 }));
+    }
+    const body = s.pts || [];
+    const playerDrop = !!s.isPlayer;
+    const n = Math.min(body.length, playerDrop ? Math.max(6, Math.floor(body.length / 2)) : Math.min(10, body.length));
+    const pile = playerDrop ? (s.stake || 0) : 0;
+    for (let i = 0; i < n; i++) {
+      const p = body[Math.floor((i / Math.max(1, n - 1)) * (body.length - 1))] || body[0];
+      world.dropped.push({
+        x: p.x,
+        y: p.y,
+        r: playerDrop ? 5 : 4,
+        c: playerDrop && pile > 0 ? "#e7c56a" : "#9fe7c2",
+        value: playerDrop && pile > 0 ? +(pile / n).toFixed(4) : 0,
+        fromPlayer: !!(playerDrop && pile > 0),
+      });
+    }
+    if (s.isPlayer && window.apexSock && window.apexSock.readyState === 1 && pile > 0) {
+      window.apexSock.send(JSON.stringify({
+        t: "shed",
+        name: state.playerName,
+        drops: world.dropped.slice(-n).map((d) => ({ x: d.x, y: d.y, value: d.value })),
+      }));
+    }
+  }   
+  function update(dt) {
+    const w = state.world;
+    if (!w) return;
+    const you = w.snakes[0];
+
+    for (const s of w.snakes) {
+      if (!s.alive) continue;
+      if (s.isPlayer) {
+        if (state.stick && state.stick.on) {
+          s.dir = Math.atan2(state.stick.y, state.stick.x);
+        } else {
+          const hx = w.cam.x + state.mouse.x - canvas.width / 2;
+          const hy = w.cam.y + state.mouse.y - canvas.height / 2;
+          s.dir = Math.atan2(hy - s.pts[0].y, hx - s.pts[0].x);
+        }
+        s.boost = state.boosting && s.pts.length > 12;
+      } else {
+        if (Math.random() < 0.03) s.dir += (Math.random() - 0.5) * 1.2;
+        s.boost = Math.random() < 0.01;
+        const look = hitTree(
+          s.pts[0].x + Math.cos(s.dir) * 40,
+          s.pts[0].y + Math.sin(s.dir) * 40,
+          w.trees,
+          8
+        );
+        if (look) s.dir += 0.7;
+      }
+
+      const spd = s.speed * (s.boost ? 1.85 : 1) * dt * 60;
+      const nx = s.pts[0].x + Math.cos(s.dir) * spd;
+      const ny = s.pts[0].y + Math.sin(s.dir) * spd;
+      const mid = w.map / 2;
+      const gate = 260;
+      const hx = s.pts[0].x, hy = s.pts[0].y;
+      const onY = Math.abs(hy - mid) <= gate;
+      const onX = Math.abs(hx - mid) <= gate;
+      let px = nx, py = ny, wrapped = false;
+      if (onY && nx <= 36) { px = w.map - 40; wrapped = true; }
+      else if (onY && nx >= w.map - 36) { px = 40; wrapped = true; }
+      if (onX && ny <= 36) { py = w.map - 40; wrapped = true; }
+      else if (onX && ny >= w.map - 36) { py = 40; wrapped = true; }
+      if (!wrapped) {
+        px = Math.max(22, Math.min(w.map - 22, nx));
+        py = Math.max(22, Math.min(w.map - 22, ny));
+      }
+      const clamped = { x: px, y: py };
+      if (wrapped && s.isPlayer) {
+        w.cam.x = px;
+        w.cam.y = py;
+      }
+      if (hitTree(clamped.x, clamped.y, w.trees, s.radius * 0.85)) {
+        s.dir += 1.15;
+        if (s.isPlayer) w.matchTrees = (w.matchTrees || 0) + 1;
+        continue;
+      }
+      const hold = s.pts.length;
+      s.pts.unshift(clamped);
+      s._boostTick = (s._boostTick || 0) + 1;
+      const burn = s.boost && s._boostTick % 8 === 0 ? 1 : 0;
+      const keep = Math.max(10, hold - burn);
+      while (s.pts.length > keep) s.pts.pop();
+      s.radius = 6 + Math.min(10, s.pts.length / 18);
+    }
+
+    function eatFrom(bucket, isDrop) {
+      for (const s of w.snakes) {
+        if (!s.alive) continue;
+        const hx = s.pts[0].x, hy = s.pts[0].y;
+        for (let i = bucket.length - 1; i >= 0; i--) {
+          const f = bucket[i];
+          const dx = hx - f.x, dy = hy - f.y;
+          const rr = s.radius + f.r;
+          if (dx * dx + dy * dy < rr * rr) {
+            const green = !(f.fromPlayer && f.value > 0);
+            if (green && s.pts.length < 90) s.pts.push({ ...s.pts[s.pts.length - 1] });
+            if (s.isPlayer && isDrop && f.fromPlayer && f.value > 0) {
+              w.prizePool = +(w.prizePool + f.value).toFixed(4);
+            }
+            bucket.splice(i, 1);
+            if (!isDrop) {
+              while (w.food.length < 280) {
+                w.food.push({
+                  x: Math.random() * w.map,
+                  y: Math.random() * w.map,
+                  r: 3 + Math.random() * 2,
+                  c: "#9fe7c2",
+                  value: 0,
+                });
+                if (w.food.length > 278) break;
+              }
+            }
+          }
+        }
+      }
+    }
+    eatFrom(w.food, false);
+    eatFrom(w.dropped, true);
+      if (you && you.alive && you.isPlayer && !w.watch) {
+      const bun = bunnyPos(w.map);
+      if (w.bunnyGone !== bun.hop) {
+        const dx = you.pts[0].x - bun.x, dy = you.pts[0].y - bun.y;
+        if (dx * dx + dy * dy < 26 * 26) {
+          w.bunnyGone = bun.hop;
+          const tail = you.pts[you.pts.length - 1];
+          for (let k = 0; k < 18; k++) you.pts.push({ x: tail.x, y: tail.y });
+          toast("Rabbit — +18 length");
+          if (window.apexSock && window.apexSock.readyState === 1) {
+            window.apexSock.send(JSON.stringify({ t: "prey", hop: bun.hop, name: state.playerName }));
+          }
+        }
+      }
+    }
+        let refill = 0;
+    while (w.food.length < 280 && refill < 8) {
+      w.food.push(foodSpot(w.map, w.food.length + refill + 280));
+      refill++;
+    }
+      for (const a of w.snakes) {
+      if (!a.alive) continue;
+      for (const b of w.snakes) {
+        if (a === b || !b.alive) continue;
+        if (w.grace && a.isPlayer) continue;
+        const hdx = a.pts[0].x - b.pts[0].x;
+        const hdy = a.pts[0].y - b.pts[0].y;
+        const headR = (a.radius + (b.radius || 6)) * 0.58;
+        if (hdx * hdx + hdy * hdy < headR * headR && a.pts.length < b.pts.length) {
+          killSnake(a, w);
+          a.death = "head";
+          if (b.isPlayer) {
+            state.matchKills += 1;
+          }
+          continue;
+        }
+        const stepB = 1;
+        const hitR = a.radius * 0.75 + (b.radius || 6) * 0.58;
+        const hitR2 = hitR * hitR;
+        const nearR2 = (hitR + 12) * (hitR + 12);
+        const startSeg = b.pts.length < 16 ? 2 : 3;
+        for (let i = startSeg; i < b.pts.length; i += stepB) {
+          const p = b.pts[i];
+          const dx = a.pts[0].x - p.x;
+          const dy = a.pts[0].y - p.y;
+          const d2 = dx * dx + dy * dy;
+          if (a.isPlayer && d2 < nearR2 && d2 >= hitR2 && (!w._hissAt || w._tick - w._hissAt > 18)) {
+            w._hissAt = w._tick;
+            hissSfx();
+          }
+          if (d2 < hitR2) {
+            killSnake(a, w);
+            a.death = "body";
+            if (b.isPlayer) {
+              let add = a.stake * 0.9;
+              if (a.bounty) add += 1;
+              state.matchKills += 1;
+              if (a.bounty) {
+                pushChat("den", "Bounty claimed: " + a.name, true);
+                toast("Bounty claimed");
+              }
+            }
+            break;
+          }
+        }
+      }
+    }
+    if (you && you.alive && you.isPlayer && !w.watch && !w.grace) {
+      const rem = window.apexPeers || {};
+      const hx = you.pts[0].x, hy = you.pts[0].y;
+      const hitR2 = 8 * 8;
+      const names = Object.keys(rem);
+      for (let n = 0; n < names.length && you.alive; n++) {
+        const r = rem[names[n]];
+        if (!r || Date.now() - r.at > 3000) continue;
+        const pts = r.trail || [{ x: r.x, y: r.y }];
+        const last = Math.max(1, pts.length - 2);
+        for (let i = 1; i < last && you.alive; i++) {
+          const ax = pts[i - 1].x, ay = pts[i - 1].y;
+          const bx = pts[i].x, by = pts[i].y;
+          const vx = bx - ax, vy = by - ay;
+          const len2 = vx * vx + vy * vy || 1;
+          let t = ((hx - ax) * vx + (hy - ay) * vy) / len2;
+          if (t < 0) t = 0;
+          if (t > 1) t = 1;
+          const px = ax + t * vx, py = ay + t * vy;
+          const dx = hx - px, dy = hy - py;
+          if (dx * dx + dy * dy < hitR2) {
+            you.killedBy = names[n];
+            killSnake(you, w);
+            you.death = "body";
+            toast("Hit " + names[n]);
+            break;
+          }
+        }
+      }
+    }
+
+    if (you.alive) {
+      if (!w.tape) w.tape = [];
+      if (true) {
+        w.tape.push({
+          cam: { x: w.cam.x, y: w.cam.y },
+          you: you.pts.map((p) => ({ x: p.x, y: p.y })),
+          others: w.snakes.filter((s) => s.alive && !s.isPlayer).map((s) => ({
+            name: s.name,
+            a: s.colorA,
+            pts: s.pts.filter((_, i) => i % 3 === 0).slice(0, 36).map((p) => ({ x: p.x, y: p.y })),
+          })),
+          peers: Object.keys(window.apexPeers || {}).map((nm) => {
+            const r = window.apexPeers[nm];
+            return { name: nm, pts: (r.trail || [{ x: r.x, y: r.y }]).map((p) => ({ x: p.x, y: p.y })), skin: r.skin || null };
+          }),
+        });
+        if (w.tape.length > 300) w.tape.shift();
+      }
+      const focus = (w.watch && w.snakes[w.watchFocus]) || you;
+      const fp = focus && focus.alive && focus.pts[0] ? focus.pts[0] : you.pts[0];
+      w.cam.x += (fp.x - w.cam.x) * 0.12;
+      w.cam.y += (fp.y - w.cam.y) * 0.12;
+      const lived = (performance.now() - (w.startedAt || performance.now())) / 1000;
+      if (lived >= 45 && !w.sideWon && w.side) {
+        w.sideWon = true;
+        const pay = +(w.side * 1.6).toFixed(4);
+        state.balanceXrp = +(state.balanceXrp + pay).toFixed(6);
+        toast("Side bet hit +" + pay + " XRP");
+      }
+      if (lived >= 45) creditContract("alive", 1);
+      const hissEl = document.getElementById("hud-hiss");
+      if (hissEl) hissEl.textContent = "—";
+    }
+    w._tick = (w._tick || 0) + 1;
+    if (w._tick % 6 === 0) renderMeta();
+  }
+
+  function drawSnake(s, cam) {
+    const ox = canvas.width / 2 - cam.x;
+    const oy = canvas.height / 2 - cam.y;
+    const pts = s.pts;
+    if (!pts.length) return;
+    const pad = 160;
+    let onScreen = false;
+    for (let i = 0; i < pts.length; i += Math.max(1, Math.floor(pts.length / 12))) {
+      const sx = pts[i].x + ox, sy = pts[i].y + oy;
+      if (sx > -pad && sy > -pad && sx < canvas.width + pad && sy < canvas.height + pad) {
+        onScreen = true;
+        break;
+      }
+    }
+    if (!onScreen) return;
+
+    const n = pts.length;
+    const stride = 1;
+    for (let i = n - 1; i >= 1; i -= stride) {
+      const p = pts[i];
+      const nxt = pts[Math.max(0, i - stride)];
+      if (Math.hypot(nxt.x - p.x, nxt.y - p.y) > 280) continue;
+      const ang = Math.atan2(nxt.y - p.y, nxt.x - p.x);
+      const t = i / n;
+      const rad = s.radius * (1.12 - t * 0.68);
+      const col = patternColor(i, s.pattern, s.colorA, s.colorB);
+      ctx.save();
+      ctx.translate(p.x + ox, p.y + oy);
+      ctx.rotate(ang);
+      ctx.fillStyle = col;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, rad * 1.45, rad * 0.7, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "rgba(255,226,170,0.22)";
+      ctx.beginPath();
+      ctx.ellipse(0, 0, rad * 0.85, rad * 0.26, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    const hx = pts[0].x + ox;
+    const hy = pts[0].y + oy;
+    const R = s.radius * 1.35;
+    ctx.save();
+    ctx.translate(hx, hy);
+    ctx.rotate(s.dir);
+    const spec = s.species || "cobra";
+    if (spec === "cobra") {
+      ctx.fillStyle = s.colorB;
+      ctx.beginPath();
+      ctx.moveTo(-R * 0.15, 0);
+      ctx.quadraticCurveTo(-R * 1.35, -R * 2.15, R * 0.15, -R * 2.55);
+      ctx.quadraticCurveTo(R * 1.55, -R * 0.15, R * 0.2, R * 0.45);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = "rgba(0,0,0,0.25)";
+      ctx.beginPath();
+      ctx.ellipse(-R * 0.05, -R * 1.15, R * 0.22, R * 0.55, 0.15, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (spec === "python") {
+      ctx.fillStyle = s.colorB;
+      ctx.beginPath();
+      ctx.ellipse(-R * 0.2, 0, R * 1.1, R * 0.95, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = s.colorA;
+    ctx.beginPath();
+    ctx.ellipse(R * 0.4, 0, R * 1.55, R * 0.82, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = s.eyes;
+    ctx.beginPath();
+    ctx.ellipse(R * 0.75, -R * 0.36, R * 0.24, R * 0.15, 0.25, 0, Math.PI * 2);
+    ctx.ellipse(R * 0.75, R * 0.36, R * 0.24, R * 0.15, -0.25, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#111";
+    ctx.beginPath();
+    ctx.arc(R * 0.9, -R * 0.36, R * 0.08, 0, Math.PI * 2);
+    ctx.arc(R * 0.9, R * 0.36, R * 0.08, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#c23b4a";
+    ctx.lineWidth = 1.35;
+    ctx.beginPath();
+    ctx.moveTo(R * 1.85, 0);
+    ctx.lineTo(R * 2.55, -3.2);
+    ctx.moveTo(R * 1.85, 0);
+    ctx.lineTo(R * 2.55, 3.2);
+    ctx.stroke();
+    const horn = s.horn || "none";
+    if (horn !== "none") {
+      ctx.fillStyle = "#e8d7a8";
+      const h1 = horn === "crown" ? R * 1.15 : R * 0.85;
+      ctx.beginPath();
+      ctx.moveTo(R * 0.15, -R * 0.55);
+      ctx.lineTo(R * 0.05, -R * 0.55 - h1);
+      ctx.lineTo(R * 0.45, -R * 0.4);
+      ctx.closePath();
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(R * 0.15, R * 0.55);
+      ctx.lineTo(R * 0.05, R * 0.55 + h1);
+      ctx.lineTo(R * 0.45, R * 0.4);
+      ctx.closePath();
+      ctx.fill();
+      if (horn === "crown") {
+        ctx.beginPath();
+        ctx.moveTo(-R * 0.1, -R * 0.15);
+        ctx.lineTo(-R * 0.35, -R * 1.05);
+        ctx.lineTo(R * 0.15, -R * 0.2);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+
+    if ((s.tail || "none") === "rattle" && pts.length > 2) {
+      const tail = pts[pts.length - 1];
+      const prev = pts[pts.length - 2];
+      const tang = Math.atan2(tail.y - prev.y, tail.x - prev.x);
+      ctx.save();
+      ctx.translate(tail.x + ox, tail.y + oy);
+      ctx.rotate(tang);
+      ctx.fillStyle = "#c4a36a";
+      for (let k = 0; k < 4; k++) {
+        ctx.beginPath();
+        ctx.ellipse(-6 - k * 5, 0, 4.2 - k * 0.4, 3.2 - k * 0.25, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    if (s.bounty) {
+      ctx.strokeStyle = "#e7c56a";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(hx, hy, s.radius + 10, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    if (s.isPlayer && state.meta.hotFang) {
+      ctx.strokeStyle = "rgba(231,197,106,0.45)";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(hx, hy, s.radius + 6, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    if (s.isPlayer && state.world && state.world.emoteUntil > performance.now()) {
+      ctx.fillStyle = "#e7c56a";
+      ctx.font = "16px Trebuchet MS";
+      ctx.fillText("ssss", hx, hy - s.radius - 28);
+    }
+    if (s.isPlayer && state.meta.charm && state.meta.charm !== "none") {
+      const col = state.meta.charm === "motes" ? "#00aae4" : state.meta.charm === "sparks" ? "#e7c56a" : "#9fe7c2";
+      ctx.fillStyle = col;
+      for (let k = 0; k < 5; k++) {
+        const ang = (performance.now() / 180 + k) % (Math.PI * 2);
+        ctx.beginPath();
+        ctx.arc(hx + Math.cos(ang) * (14 + k * 3), hy + Math.sin(ang) * (10 + k * 2), 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.fillStyle = "#d7efe4";
+    ctx.font = "12px Trebuchet MS";
+    ctx.textAlign = "center";
+    ctx.fillText((s.bounty ? "★ " : "") + s.name, hx, hy - s.radius - 14);
+  }
+
+  function worldToScreen(x, y, cam) {
+    return { x: x - cam.x + canvas.width / 2, y: y - cam.y + canvas.height / 2 };
+  }
+
+  function drawTree(t, cam) {
+    const p = worldToScreen(t.x, t.y, cam);
+    if (p.x < -80 || p.y < -80 || p.x > canvas.width + 80 || p.y > canvas.height + 80) return;
+    ctx.fillStyle = "#3a2614";
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, t.trunk, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = `hsla(${t.hue}, 42%, 22%, 0.92)`;
+    ctx.beginPath();
+    ctx.arc(p.x - 10, p.y - 16, t.canopy * 0.62, 0, Math.PI * 2);
+    ctx.arc(p.x + 14, p.y - 10, t.canopy * 0.55, 0, Math.PI * 2);
+    ctx.arc(p.x, p.y - 28, t.canopy * 0.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = `hsla(${t.hue + 8}, 50%, 30%, 0.55)`;
+    ctx.beginPath();
+    ctx.arc(p.x - 4, p.y - 22, t.canopy * 0.32, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  function drawLobbyJungle() {
+    const W = canvas.width;
+    const H = canvas.height;
+    ctx.fillStyle = "#050806";
+    ctx.fillRect(0, 0, W, H);
+    if (lobbyArt.complete && lobbyArt.naturalWidth) {
+      const iw = lobbyArt.naturalWidth;
+      const ih = lobbyArt.naturalHeight;
+      const scale = Math.max(W / iw, H / ih);
+      const dw = iw * scale;
+      const dh = ih * scale;
+      ctx.drawImage(lobbyArt, (W - dw) / 2, (H - dh) / 2, dw, dh);
+    }
+    ctx.fillStyle = "rgba(6, 16, 8, 0.38)";
+    ctx.fillRect(0, H * 0.78, W, H * 0.22);
+    ctx.fillStyle = "#e7c56a";
+    ctx.font = "22px Trebuchet MS";
+    ctx.textAlign = "center";
+    ctx.fillText("APEX.XRP", W / 2, H * 0.88);
+    ctx.fillStyle = "#d7efe4";
+    ctx.font = "14px Trebuchet MS";
+    ctx.fillText("Apex Predator. Hunt the canopy.", W / 2, H * 0.88 + 22);
+  }
+
+  function render() {
+    const w = state.world;
+    const biome = (w && w.biome) || "jungle";
+    if (!w) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawLobbyJungle();
+      return;
+    }
+    ctx.fillStyle = biome === "night" ? "#05070a" : biome === "river" ? "#0a1614" : "#0a160c";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    const cam = w.cam;
+    ctx.strokeStyle = biome === "night" ? "#121820" : biome === "river" ? "#16332c" : "#16351c";
+    ctx.lineWidth = 1;
+    const step = biome === "jungle" ? 120 : 100;
+    const ox = -((cam.x - canvas.width / 2) % step);
+    const oy = -((cam.y - canvas.height / 2) % step);
+    ctx.beginPath();
+    for (let x = ox; x < canvas.width; x += step) {
+      ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height);
+    }
+    for (let y = oy; y < canvas.height; y += step) {
+      ctx.moveTo(0, y); ctx.lineTo(canvas.width, y);
+    }
+    ctx.stroke();
+
+    const sx0 = canvas.width / 2 - cam.x;
+    const sy0 = canvas.height / 2 - cam.y;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, 0, canvas.width, canvas.height);
+    ctx.rect(sx0, sy0, w.map, w.map);
+    ctx.fillStyle = biome === "night" ? "#020308" : biome === "river" ? "#03100e" : "#040805";
+    ctx.fill("evenodd");
+    const wall = biome === "night" ? "#6ad0ff" : biome === "river" ? "#7cf0c2" : "#e7c56a";
+    ctx.strokeStyle = wall;
+    ctx.lineWidth = 8;
+    ctx.strokeRect(sx0, sy0, w.map, w.map);
+    ctx.strokeStyle = "rgba(255,255,255,0.18)";
+    ctx.lineWidth = 2;
+    ctx.setLineDash([14, 10]);
+    ctx.strokeRect(sx0 + 28, sy0 + 28, w.map - 56, w.map - 56);
+    ctx.setLineDash([]);
+    const midX = sx0 + w.map / 2;
+    const midY = sy0 + w.map / 2;
+    const gate = 260;
+    ctx.fillStyle = "#040805";
+    ctx.fillRect(sx0 - 10, midY - gate, 20, gate * 2);
+    ctx.fillRect(sx0 + w.map - 10, midY - gate, 20, gate * 2);
+    ctx.fillRect(midX - gate, sy0 - 10, gate * 2, 20);
+    ctx.fillRect(midX - gate, sy0 + w.map - 10, gate * 2, 20);
+    ctx.strokeStyle = "#7cf0c2";
+    ctx.lineWidth = 3;
+    const rings = [
+      [sx0, midY],
+      [sx0 + w.map, midY],
+      [midX, sy0],
+      [midX, sy0 + w.map],
+    ];
+    for (const [px, py] of rings) {
+      ctx.beginPath();
+      ctx.ellipse(px, py, 18, 52, px === midX ? Math.PI / 2 : 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    if (biome === "jungle") {
+      ctx.fillStyle = "rgba(18, 50, 22, 0.35)";
+      for (let i = 0; i < 8; i++) {
+        const gx = ((i * 173) % w.map) - cam.x + canvas.width / 2;
+        const gy = ((i * 291) % w.map) - cam.y + canvas.height / 2;
+        ctx.beginPath();
+        ctx.ellipse(gx, gy, 70, 28, 0.4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    for (const t of w.trees) drawTree(t, cam);
+
+    const sx = canvas.width / 2 - cam.x;
+    const sy = canvas.height / 2 - cam.y;
+      if (w.bunnyGone !== bunnyPos(w.map).hop) {
+      const bun = bunnyPos(w.map);
+      const bx = bun.x + sx, by = bun.y + sy;
+      ctx.fillStyle = "#f3efe4";
+      ctx.beginPath();
+      ctx.ellipse(bx, by, 8, 6, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#d9cbb3";
+      ctx.fillRect(bx - 4, by - 14, 3, 10);
+      ctx.fillRect(bx + 1, by - 14, 3, 10);
+    }
+    for (const f of w.food) {
+      f.value = 0;
+      f.c = "#9fe7c2";
+      const fx = f.x + sx, fy = f.y + sy;
+      if (fx < -8 || fy < -8 || fx > canvas.width + 8 || fy > canvas.height + 8) continue;
+      ctx.beginPath();
+      ctx.fillStyle = "#9fe7c2";
+      ctx.arc(fx, fy, f.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    for (const f of (state.mode === "killcam" ? [] : w.dropped)) {
+      const pay = !!(f.fromPlayer && f.value > 0);
+      ctx.beginPath();
+      ctx.fillStyle = pay ? "#e7c56a" : "#9fe7c2";
+      ctx.arc(f.x + sx, f.y + sy, f.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    for (const s of w.snakes) if (s.alive) drawSnake(s, cam);
+    const rem = state.mode === "play" ? (window.apexPeers || {}) : {};
+    const now = Date.now();
+    Object.keys(rem).forEach((nm) => {
+      const r = rem[nm];
+      if (!r || now - r.at > 3000) return;
+      const trail = r.trail || [{ x: r.x, y: r.y }];
+      if (trail.length > 1) {
+        const pa = (r.skin && r.skin.a) || "#e7c56a";
+        const pb = (r.skin && r.skin.b) || pa;
+        const neck = trail[Math.min(4, trail.length - 1)];
+        const fake = {
+          pts: trail,
+          radius: 7,
+          colorA: pa,
+          colorB: pb,
+          pattern: (r.skin && r.skin.p) || "solid",
+          species: (r.skin && r.skin.sp) || "cobra",
+          horn: (r.skin && r.skin.h) || "none",
+          tail: (r.skin && r.skin.t) || "none",
+          eyes: (r.skin && r.skin.e) || "#f5e6a8",
+          dir: Math.atan2(trail[0].y - neck.y, trail[0].x - neck.x),
+          name: nm,
+        };
+        drawSnake(fake, cam);
+      }
+    });
+      if (state.mode === "killcam" && w.kcPeers) {
+      w.kcPeers.forEach((peer) => {
+        const trail = peer.pts || [];
+        if (trail.length < 2) return;
+        const pa = (peer.skin && peer.skin.a) || "#e7c56a";
+        const pb = (peer.skin && peer.skin.b) || pa;
+        const neck = trail[Math.min(4, trail.length - 1)];
+        const fake = {
+          pts: trail,
+          radius: 7,
+          colorA: pa,
+          colorB: pb,
+          pattern: (peer.skin && peer.skin.p) || "solid",
+          species: (peer.skin && peer.skin.sp) || "cobra",
+          horn: (peer.skin && peer.skin.h) || "none",
+          tail: (peer.skin && peer.skin.t) || "none",
+          eyes: (peer.skin && peer.skin.e) || "#f5e6a8",
+          dir: Math.atan2(trail[0].y - neck.y, trail[0].x - neck.x),
+          name: peer.name || "",
+        };
+        drawSnake(fake, cam);
+      });
+    }
+    drawMinimap(w);
+
+    if (w.snakes[0] && !w.snakes[0].alive && state.mode === "play" && !w.watch) {
+      if (w._cashOutBusy) return; // cash-out pending — ignore death UI
+      const gained = grantMatchExp(false, w);
+      state.meta.streak = 0;
+      state.meta.hotFang = false;
+      state.meta.journal.greediest = Math.max(state.meta.journal.greediest || 0, w.prizePool || 0);
+      if (w.insure) {
+        const back = +(state.tier.stakeXrp * 0.2).toFixed(4);
+        state.balanceXrp = +(state.balanceXrp + back).toFixed(6);
+        toast("Insurance shed +" + back + " XRP");
+      }
+      save();
+      beginKillCam(w, gained);
+    }
+  }
+
+  function beginKillCam(w, gained) {
+    state.mode = "killcam";
+    state.killcam = { frames: (w.tape && w.tape.slice()) || [], i: 0, gained };
+    const tag = document.getElementById("killcam-tag");
+    if (tag) tag.classList.remove("hidden");
+    toast("Kill cam");
+  }
+
+  function stepKillCam() {
+    const kc = state.killcam;
+    const w = state.world;
+    if (!kc || !w) {
+      state.mode = "dead";
+      return;
+    }
+    const frame = kc.frames[kc.i];
+    kc.i += 1;
+    if (!frame) {
+      const tag = document.getElementById("killcam-tag");
+      if (tag) tag.classList.add("hidden");
+      if (w.snakes[0]) w.snakes[0].alive = false;
+      state.mode = "dead";
+      showEnd(false, { exp: kc.gained });
+      return;
+    }
+    w.cam.x = frame.cam.x;
+    w.cam.y = frame.cam.y;
+    if (w.snakes[0] && frame.you) {
+      w.snakes[0].alive = true;
+      w.snakes[0].pts = frame.you;
+      if (frame.you.length > 1) {
+        const a = frame.you[0], b = frame.you[1];
+        w.snakes[0].dir = Math.atan2(a.y - b.y, a.x - b.x);
+      }
+      w.kcPeers = frame.peers || [];
+    }
+  }
+
+  function drawMinimap(w) {
+    if (!w || (state.mode !== "play" && state.mode !== "killcam")) return;
+    const size = Math.min(148, Math.max(110, canvas.width * 0.16));
+    const pad = 12;
+    const x = canvas.width - size - pad;
+    const y = pad;
+    const sc = size / w.map;
+    ctx.save();
+    ctx.globalAlpha = 0.92;
+    ctx.fillStyle = "rgba(6,12,8,0.82)";
+    ctx.strokeStyle = "#e7c56a";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect ? ctx.roundRect(x, y, size, size, 10) : ctx.rect(x, y, size, size);
+    ctx.fill();
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(124,240,194,0.7)";
+    ctx.lineWidth = 2;
+    const mid = size / 2;
+    ctx.beginPath();
+    ctx.moveTo(x + 6, y + mid);
+    ctx.lineTo(x + 16, y + mid);
+    ctx.moveTo(x + size - 16, y + mid);
+    ctx.lineTo(x + size - 6, y + mid);
+    ctx.moveTo(x + mid, y + 6);
+    ctx.lineTo(x + mid, y + 16);
+    ctx.moveTo(x + mid, y + size - 16);
+    ctx.lineTo(x + mid, y + size - 6);
+    ctx.stroke();
+    for (const s of w.snakes) {
+      if (!s.alive || !s.pts[0]) continue;
+      const px = x + s.pts[0].x * sc;
+      const py = y + s.pts[0].y * sc;
+      ctx.beginPath();
+      ctx.fillStyle = s.isPlayer ? "#3dff9a" : (s.bounty || s.hotFang) ? "#c77dff" : "#ff5d6c";
+      ctx.arc(px, py, s.isPlayer ? 4.5 : 3.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    const rem = window.apexPeers || {};
+    Object.keys(rem).forEach((nm) => {
+      const r = rem[nm];
+      if (!r || Date.now() - r.at > 3000) return;
+      ctx.beginPath();
+      ctx.fillStyle = "#ff5d6c";
+      ctx.arc(x + r.x * sc, y + r.y * sc, 3.2, 0, Math.PI * 2);
+      ctx.fill();
+    });
+      if (w.bunnyGone !== bunnyPos(w.map).hop) {
+      const bun = bunnyPos(w.map);
+      ctx.beginPath();
+      ctx.fillStyle = "#fff6d2";
+      ctx.arc(x + bun.x * sc, y + bun.y * sc, 3.4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = "#e8f0ea";
+    ctx.font = "10px Trebuchet MS";
+    ctx.textAlign = "left";
+    ctx.fillText("YOU · HUNT · HOT", x + 8, y + 14);
+    ctx.restore();
+  }
+
+  function loop(t) {
+    const dt = Math.min(0.033, (t - state.last) / 1000 || 0.016);
+    state.last = t;
+    if (document.hidden) {
+      requestAnimationFrame(loop);
+      return;
+    }
+    if (state.mode === "play") update(dt);
+    if (state.mode === "killcam") stepKillCam();
+    if (state.mode === "lobby") paintPreview(t);
+    render();
+    requestAnimationFrame(loop);
+  }
+
+  function grantMatchExp(cashed, w) {
+    const you = w && w.snakes && w.snakes[0];
+    const len = you ? you.pts.length : 10;
+    const kills = state.matchKills || 0;
+    const stake = state.tier.stakeXrp;
+    let gained = cashed
+      ? 28 + stake * 6 + Math.floor(len * 1.6) + kills * 22 + Math.floor((w.prizePool || 0) * 12)
+      : 8 + Math.floor(len * 0.7) + kills * 14;
+    gained = Math.max(1, Math.floor(gained));
+    const before = rankOf(state.exp).cur.name;
+    state.exp += gained;
+    const after = rankOf(state.exp);
+    upsertBoardExp();
+    pushChat("system", `+${gained} EXP` + (after.cur.name !== before ? ` — promoted to ${after.cur.name}` : ""), true);
+    maybeWhitelistAirdrop(after.cur.name !== before ? "promote" : "exp");
+    return gained;
+  }
+  function upsertBoardExp() {
+    let row = state.board.find((b) => b.name === state.playerName);
+    if (!row) {
+      row = { name: state.playerName, xrp: 0, exp: state.exp, server: state.tier.name };
+      state.board.push(row);
+    }
+    row.exp = state.exp;
+    row.server = state.tier.name;
+    state.board.sort((a, b) => (b.exp || 0) - (a.exp || 0) || (b.xrp || 0) - (a.xrp || 0));
+  }
+  function pushChat(who, text, sys, tip) {
+    const line = {
+      who: cleanName(who),
+      text: String(text).replace(/[<>]/g, "").slice(0, 160),
+      sys: !!sys,
+      tip: !!tip,
+    };
+    if (!line.text) return;
+    state.chat.push(line);
+    if (state.chat.length > 40) state.chat = state.chat.slice(-40);
+    save();
+    renderChat();
+  }
+    function findHunter(name) {
+    const key = nameKey(name);
+    if (!key) return null;
+    if (nameKey(state.playerName) === key) return { name: state.playerName, self: true };
+    const row = (state.board || []).find((b) => nameKey(b.name) === key);
+    if (row) return { name: row.name, self: false, row };
+    const bot = BOT_NAMES.find((n) => nameKey(n) === key);
+    if (bot) return { name: bot, self: false, row: null };
+    return { name: cleanName(name), self: false, row: null };
+  }
+  function handleTipCommand(raw) {
+    const text = String(raw || "").trim();
+    const help = /^\/?(tip|tipbot)\s*(help|\?|$)/i;
+    if (help.test(text) && !/^\/tip\s+\S+\s+/i.test(text)) {
+      pushChat("TipBot", "Usage: /tip Username 0.5  — min 0.01 XRP, max 20. Target must be on the board or in the den.", true, true);
+      return true;
+    }
+    const m = text.match(/^\/tip(?:bot)?\s+@?([A-Za-z0-9_\-]{2,16})\s+([0-9]+(?:\.[0-9]{1,6})?)$/i);
+    if (!m) {
+      if (/^\/tip/i.test(text)) {
+        pushChat("TipBot", "Could not read that. Try /tip Username 0.5", true, true);
+        return true;
+      }
+      return false;
+    }
+    const target = findHunter(m[1]);
+    const amt = +Number(m[2]).toFixed(6);
+    if (!target) {
+      pushChat("TipBot", "No hunter named " + cleanName(m[1]) + ".", true, true);
+      return true;
+    }
+    if (target.self) {
+      pushChat("TipBot", "You cannot tip yourself.", true, true);
+      return true;
+    }
+    if (!Number.isFinite(amt) || amt < 0.01) {
+      pushChat("TipBot", "Minimum tip is 0.01 XRP.", true, true);
+      return true;
+    }
+    if (amt > 20) {
+      pushChat("TipBot", "Maximum tip is 20 XRP.", true, true);
+      return true;
+    }
+    if (state.balanceXrp < amt) {
+      pushChat("TipBot", "Not enough XRP in your stack.", true, true);
+      return true;
+    }
+    if (state.mode === "play") {
+      pushChat("TipBot", "Finish the den before you tip.", true, true);
+      return true;
+    }
+    state.balanceXrp = +(state.balanceXrp - amt).toFixed(6);
+    let row = target.row || (state.board || []).find((b) => nameKey(b.name) === nameKey(target.name));
+    if (!row) {
+      row = { name: target.name, xrp: 0, exp: 0, server: "Den" };
+      state.board.push(row);
+    }
+    row.xrp = +(Number(row.xrp || 0) + amt).toFixed(4);
+    save();
+    renderMeta();
+    renderBoard();
+    pushChat(
+      "TipBot",
+      state.playerName + " tipped " + target.name + " " + amt + " XRP  (" + usd(amt) + ")",
+      false,
+      true
+    );
+    if (state.meta.tipsDay !== dayKey()) { state.meta.tipsDay = dayKey(); state.meta.tipsCount = 0; }
+    state.meta.tipsCount += 1;
+    if (state.meta.tipsCount >= 3) {
+      pushChat("TipBot", state.playerName + " is on a tip streak (" + state.meta.tipsCount + " today).", false, true);
+    }
+    toast("Tipped " + target.name + " " + amt + " XRP");
+    return true;
+  }
+  function formatChatText(text) {
+    return escapeHtml(text).replace(/:xrp:/g, '<img class="chat-xrp" src="logo.png" alt="XRP">');
+  }
+  function renderChat() {
+    const el = document.getElementById("chat-log");
+    if (!el) return;
+    el.innerHTML = state.chat
+      .slice(-40)
+      .map((m) => {
+        const kind = m.tip ? " tip" : m.sys ? " sys" : "";
+        return m.sys && !m.tip
+          ? `<div class="chat-line sys">${escapeHtml(m.text)}</div>`
+          : `<div class="chat-line${kind}"><span class="who">${escapeHtml(m.who)}</span> ${formatChatText(m.text)}</div>`;
+      })
+      .join("");
+    el.scrollTop = el.scrollHeight;
+  }
+  function renderRank() {
+    const el = document.getElementById("rank-card");
+    if (!el) return;
+    const r = rankOf(state.exp);
+    const floor = r.cur.exp;
+    const ceil = r.next ? r.next.exp : r.cur.exp;
+    const span = Math.max(1, ceil - floor);
+    const pct = r.next ? Math.min(100, ((state.exp - floor) / span) * 100) : 100;
+    el.innerHTML = `<b>${escapeHtml(rankBand(state.exp))}</b>
+      ${state.exp.toLocaleString()} EXP · ${state.meta.tickets || 0} ticket${(state.meta.tickets || 0) === 1 ? "" : "s"}
+      <div class="rank-bar"><i style="width:${pct.toFixed(1)}%"></i></div>
+      ${r.next ? `Next ${escapeHtml(r.next.name)} · ${Math.max(0, r.next.exp - state.exp).toLocaleString()} EXP to go` : "Peak rank."}`;
+  }
+
+  function openRankLadder() {
+    const box = document.getElementById("rank-modal");
+    const list = document.getElementById("rank-ladder");
+    const nextEl = document.getElementById("rank-modal-next");
+    if (!box || !list) return;
+    const r = rankOf(state.exp);
+    const need = r.next ? Math.max(0, r.next.exp - state.exp) : 0;
+    if (nextEl) {
+      nextEl.textContent = r.next
+        ? `You are ${r.cur.name} · ${state.exp.toLocaleString()} EXP · ${need.toLocaleString()} EXP until ${r.next.name}`
+        : `You are ${r.cur.name} · peak of the ladder`;
+    }
+    list.innerHTML = RANKS.map((rk, i) => {
+      const cls = state.exp >= rk.exp ? (r.cur.name === rk.name ? "now" : "have") : "wait";
+      const mark = r.cur.name === rk.name ? "●" : state.exp >= rk.exp ? "✓" : String(i + 1);
+      const extra = r.cur.name === rk.name && r.next ? ` · ${need.toLocaleString()} EXP to next` : `${rk.exp.toLocaleString()} EXP`;
+      return `<div class="rank-row ${cls}"><span>${mark}</span><span>${escapeHtml(rk.name)}</span><span>${extra}</span></div>`;
+    }).join("");
+    box.classList.remove("hidden");
+  }
+
+  function maybeWhitelistAirdrop(reason) {
+    try {
+      if (!hasTestnetXaman()) return;
+      const level = rankLevel(state.exp);
+      if (level < 3) return;
+      const addr = state.wallet.address;
+      const key = "apex-io-airdrop-wl";
+      let list = safeParse(localStorage.getItem(key), null) || [];
+      if (!Array.isArray(list)) list = [];
+      if (list.some((e) => e && e.address === addr)) return;
+      const entry = {
+        address: addr,
+        name: state.playerName,
+        level: level,
+        rank: rankOf(state.exp).cur.name,
+        exp: state.exp,
+        at: Date.now(),
+        reason: reason || "level3",
+      };
+      list.push(entry);
+      localStorage.setItem(key, JSON.stringify(list.slice(-200)));
+      state.meta.airdropWhitelisted = true;
+      save();
+      pushChat("den", "APEX airdrop whitelist: " + entry.name + " · " + addr.slice(0, 8) + "… (level " + level + ")", true);
+      toast("Level " + level + " — you're on the APEX airdrop whitelist");
+      fetch(DEN_SERVER + "/airdrop/whitelist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(entry),
+      }).catch(() => {});
+    } catch (_) {}
+  }
+
+  async function cashOut() {
+    const w = state.world;
+    if (!w || state.mode !== "play" || !w.snakes[0].alive || w.watch) return;
+    if (w._cashOutBusy) return;
+    if (w.allIn && w.snakes[0].pts.length < 28) {
+      toast("All-in coil: grow to 28 first.");
+      return;
+    }
+    let gross = Math.round((w.prizePool || 0) * 100) / 100;
+    let fee = +(gross * FEE_RATE).toFixed(4);
+    let net = +(gross - fee).toFixed(4);
+    if (!(gross > 0) || !(net > 0)) {
+      toast("Nothing to cash out.");
+      return;
+    }
+
+    const useLedger = effectiveNetwork() === "testnet" && hasTestnetXaman();
+    let netTxHash = null;
+    let feeTxHash = null;
+
+    if (useLedger) {
+      if (!state.wallet || !state.wallet.address) {
+        toast("Link Xaman (Testnet) before cash-out.");
+        return;
+      }
+      if (!state.lastLockTx) {
+        toast("No Jungle lock on file — enter the den with a 1 XRP Payment first.");
+        return;
+      }
+      w._cashOutBusy = true;
+      toast("Cashing out — you're safe until Testnet confirms (can take ~20–40s)…");
+      let progressTimer = setInterval(() => {
+        toast("Still confirming on Testnet ledger…");
+      }, 4000);
+      try {
+        const payload = {
+          hunter: state.wallet.address,
+          grossXrp: gross,
+          lockTx: state.lastLockTx,
+        };
+        let body = null;
+        let lastErr = null;
+        // Retry: server is idempotent on lockTx — recovers when the phone drops a slow 200.
+        for (let attempt = 0; attempt < 4; attempt++) {
+          try {
+            if (attempt > 0) toast("Reconnecting to den server for cash-out…");
+            const res = await fetch(DEN_SERVER + "/den/cashout", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload),
+            });
+            body = await res.json().catch(() => ({}));
+            lastErr = null;
+            if (body && body.ok) break;
+            if (body && (body.busy || body.feePending)) {
+              await new Promise((r) => setTimeout(r, 2500));
+              continue;
+            }
+            break;
+          } catch (e) {
+            lastErr = e;
+            body = null;
+            await new Promise((r) => setTimeout(r, 2000 + attempt * 1500));
+          }
+        }
+        if (!body || !body.ok) {
+          toast((body && body.reason) || (lastErr ? "Could not reach den server for cash-out." : "Cash-out failed"));
+          return;
+        }
+        netTxHash = body.netTxHash;
+        feeTxHash = body.feeTxHash;
+        var drawTxHash = body.drawTxHash || null;
+        if (typeof body.grossXrp === "number") gross = body.grossXrp;
+        if (typeof body.feeXrp === "number") fee = body.feeXrp;
+        if (typeof body.netXrp === "number") net = body.netXrp;
+        w._lastDrawTxHash = drawTxHash;
+        if (body.replay) toast("Recovered cash-out from ledger…");
+      } catch (e) {
+        toast("Cash-out hit a client error — check wallet; lock may already be settled.");
+        console.error("cashOut", e);
+        return;
+      } finally {
+        clearInterval(progressTimer);
+        w._cashOutBusy = false;
+      }
+    }
+
+    if (!useLedger) {
+      state.balanceXrp = +(state.balanceXrp + net).toFixed(6);
+    }
+    state.feePaidTotal = +(state.feePaidTotal + fee).toFixed(4);
+    state.meta.weekFees = +(state.meta.weekFees + fee).toFixed(4);
+    state.meta.seasonPot = +(state.meta.seasonPot + fee * 0.02).toFixed(4);
+    state.meta.streak = (state.meta.streak || 0) + 1;
+    state.meta.hotFang = state.meta.streak >= 3;
+    state.meta.journal.bestCash = Math.max(state.meta.journal.bestCash || 0, net);
+    state.meta.journal.longest = Math.max(state.meta.journal.longest || 0, w.snakes[0].pts.length);
+    creditContract("cash", net);
+    creditContract("kills", state.matchKills);
+    maybeDropSkin(true, net, w);
+    state.meta.seasonExp += 15;
+
+    if (useLedger && netTxHash && feeTxHash) {
+      pushChat("den", "Cash-out net " + netTxHash + " · fee " + feeTxHash + (w._lastDrawTxHash ? (" · draw " + w._lastDrawTxHash) : "") + " · " + net + " XRP", true);
+      clearMatchLock();
+      scheduleBalanceRefresh(+net);
+    } else {
+      const rx = "sim:" + Math.random().toString(16).slice(2, 10);
+      pushChat("den", "Cash-out receipt " + rx + " · " + net + " XRP", true);
+    }
+    state.sheds = [{ name: state.playerName, xrp: net, at: Date.now() }].concat(state.sheds || []).slice(0, 30);
+    renderSheds();
+    const row = state.board.find((b) => b.name === state.playerName);
+    if (row) row.xrp = +(row.xrp + net).toFixed(2);
+    else state.board.unshift({ name: state.playerName, xrp: net, server: state.tier.name });
+    state.board.sort((a, b) => b.xrp - a.xrp);
+    const gained = grantMatchExp(true, w);
+    save();
+    state.mode = "cashed";
+    showEnd(true, { gross, fee, net, exp: gained });
+  }
+
+  function showEnd(win, money) {
+    clearMatchLock(); // next Join / Strike again needs a new Payment
+    // Always re-read Testnet wallet after every match (win or loss).
+    scheduleBalanceRefresh();
+    overlay.classList.remove("hidden");
+    const box = document.getElementById("modal-body");
+    const expLine = money && money.exp ? ` +${money.exp} EXP (${escapeHtml(rankOf(state.exp).cur.name)})` : "";
+    const wasDuel = !!(state.world && state.world.duel);
+    if (wasDuel) {
+      box.innerHTML = `
+        <h3>${win ? "1v1 over" : "You were dropped"}</h3>
+          <p>${win && money && money.net != null
+          ? `Gross ${money.gross} XRP (${usd(money.gross)}). Fee ${money.fee} XRP to treasury (10%). You keep ${money.net} XRP.`
+          : (win ? "Pot settled. Back to the dens." : "1v1 is over. Back to the dens.")}${expLine}</p>
+        <button class="btn primary" id="again">Back to dens</button>`;
+    } else if (win) {
+      box.innerHTML = `
+        <h3>Shed and leave</h3>
+        <p>${win && money && money.net != null
+          ? `Gross ${money.gross} XRP (${usd(money.gross)}). Fee ${money.fee} XRP to treasury (10%). You keep ${money.net} XRP.`
+          : (win ? "Pot settled. Back to the dens." : "1v1 is over. Back to the dens.")}${expLine}</p>
+        <button class="btn primary" id="strike">Strike again</button>
+        <button class="btn" id="again">Back to dens</button>`;
+    } else {
+      box.innerHTML = `
+        <h3>You were dropped</h3>
+        <p>Head met another snake's body. Buy-in is gone. Shed mass stays in the pit.${expLine}</p>
+        <button class="btn primary" id="strike">Strike again</button>
+        <button class="btn" id="watch-after">Watch den</button>
+        <button class="btn" id="again">Back to dens</button>`;
+    }
+    creditContract("den", 1);
+    const strike = document.getElementById("strike");
+    if (strike) strike.onclick = () => {
+      overlay.classList.add("hidden");
+      clearMatchLock();
+      scheduleBalanceRefresh();
+      startMatch(); // Testnet: fresh 1 XRP Payment every Strike again
+    };
+    const watchAfter = document.getElementById("watch-after");
+    if (watchAfter) watchAfter.onclick = () => {
+      overlay.classList.add("hidden");
+      startMatch({ watch: true });
+      const w = state.world;
+      if (!w) return;
+      w.watch = true;
+      w.watchFocus = 1;
+      w.snakes[0].isPlayer = false;
+      w.snakes[0].stake = 0;
+      applyWatchUi(true);
+      cycleWatch(1);
+    };
+        document.getElementById("again").onclick = () => {
+      fetch("https://apex-xrp-server-production.up.railway.app/room/jungle/leave?name=" + encodeURIComponent(state.playerName)).catch(() => {});
+      state.world = null;
+      state.mode = "lobby";
+      clearMatchLock();
+      overlay.classList.add("hidden");
+      applyWatchUi(false);
+      setPlayingLayout(false);
+      resize();
+      scheduleBalanceRefresh();
+      renderMeta();
+      renderBoard();
+      renderRank();
+      renderChat();
+    };
+  }
+
+  function setPlayingLayout(on) {
+    const app = document.getElementById("app");
+    app.classList.toggle("playing", on);
+    app.classList.remove("sheet-left", "sheet-right");
+    document.body.style.overflow = on ? "hidden" : "auto";
+    document.body.style.touchAction = on ? "none" : "manipulation";
+    const boost = document.getElementById("touch-ui");
+    if (boost && !on) boost.style.display = "none";
+    setArenaFullscreen(on);
+  }
+  function setArenaFullscreen(on) {
+    const root = document.documentElement;
+    const fs = document.fullscreenElement || document.webkitFullscreenElement;
+    try {
+      if (on && !fs) {
+        const req = root.requestFullscreen || root.webkitRequestFullscreen;
+        if (req) req.call(root);
+      } else if (!on && fs) {
+        const ex = document.exitFullscreen || document.webkitExitFullscreen;
+        if (ex) ex.call(document);
+      }
+    } catch (_) {}
+  }
+
+  function pointFromEvent(e) {
+    const r = canvas.getBoundingClientRect();
+    const t = e.touches ? e.touches[0] : e;
+    if (!t) return;
+    state.mouse.x = t.clientX - r.left;
+    state.mouse.y = t.clientY - r.top;
+  }
+
+  function renderQueue() {
+    const el = document.getElementById("queue-banner");
+    if (!el) return;
+    if (state.mode === "play" || state.mode === "killcam") {
+      el.style.display = "none";
+      return;
+    }
+    el.style.display = "block";
+    const m = new Date().getMinutes();
+    const j = 3 + (m % 6);
+    const r = 1 + (m % 4);
+    const n = m % 3;
+    el.textContent = "Queue · Jungle " + j + " · River Coil " + r + " · Night Apex " + n;
+  }
+  async function recordSiteVisit() {
+    const el = document.getElementById("visit-count");
+    try {
+      const res = await fetch(DEN_SERVER + "/stats/visit", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+      const body = await res.json().catch(() => ({}));
+      if (el && body && body.ok && typeof body.total === "number") {
+        el.textContent = "Visitors: " + body.total.toLocaleString();
+      }
+    } catch (_) {
+      if (el) el.textContent = "Visitors: —";
+    }
+  }
+
+  function renderMeta() {
+    const balEl = document.getElementById("bal");
+    const balUsd = document.getElementById("bal-usd");
+    if (!state.wallet) {
+      balEl.textContent = "—";
+      if (balUsd) balUsd.textContent = "Link wallet";
+    } else {
+      balEl.textContent = state.balanceXrp.toFixed(3) + " XRP";
+      if (balUsd) balUsd.textContent = usd(state.balanceXrp);
+    }
+    const et = document.getElementById("exp-tickets");
+    if (et) et.textContent = state.exp.toLocaleString() + " EXP · " + (state.meta.tickets || 0) + " Sunday tickets";
+    const px = document.getElementById("price");
+    if (px) px.textContent = "$" + state.xrpUsd.toFixed(4);
+    const age = document.getElementById("price-age");
+    if (age) age.textContent = state.priceAt ? "live" : "cached";
+    document.getElementById("name-out").textContent = state.playerName;
+    document.getElementById("net-out").textContent = effectiveNetwork();
+    syncNetworkUi();
+    document.getElementById("fee-out").textContent = state.feePaidTotal.toFixed(3) + " XRP";
+    document.getElementById("treasury-out").textContent = state.treasury || "not set — open Treasury";
+    const w = state.world;
+    document.getElementById("hud-server").textContent = (w && w.watch) ? "Watch" : ((w && w.duel) ? ("1v1 vs " + w.duel) : state.tier.name);
+    document.getElementById("hud-stake").textContent = (w && w.watch) ? "—" : ((w && w.duel) ? (w.snakes[0].stake + " XRP") : (state.tier.stakeXrp + " XRP"));
+    document.getElementById("hud-pool").textContent = w ? w.prizePool.toFixed(3) + " XRP" : "—";
+    const focus = w && w.watch ? (w.snakes[w.watchFocus] || w.snakes[0]) : (w && w.snakes[0]);
+    document.getElementById("hud-len").textContent = focus ? String(focus.pts.length) : "—";
+    const pov = document.getElementById("watch-pov");
+    if (pov && focus) pov.textContent = focus.name;
+    renderMetaPanels();
+    renderQueue();
+    renderSheds();
+  }
+
+  function renderSheds() {
+    const tb = document.getElementById("shed-body");
+    if (!tb) return;
+    const rows = state.sheds || [];
+    tb.innerHTML = rows.length
+      ? rows.slice(0, 16).map((s) => `<tr><td>${escapeHtml(s.name)}</td><td>${Number(s.xrp).toFixed(3)}</td><td>${usd(s.xrp)}</td></tr>`).join("")
+      : `<tr><td colspan="3">No sheds yet.</td></tr>`;
+  }
+  function renderBoard() {
+    const tb = document.getElementById("board-body");
+    tb.innerHTML = state.board
+      .slice(0, 10)
+      .map((r, i) => {
+        const rk = rankOf(r.exp || 0).cur.name;
+        const cashed = Number(r.xrp) || 0;
+        return `<tr><td>${i + 1}</td><td>${escapeHtml(r.name)}</td><td>${escapeHtml(rk)}</td><td>${Math.floor(r.exp || 0)}</td></tr>`;
+      })
+      .join("");
+  }
+
+  function renderTiers() {
+    const el = document.getElementById("tiers");
+    el.innerHTML = TIERS.map(
+      (t) => `
+      <div class="tier ${t.id === state.tier.id ? "active" : ""}" data-id="${t.id}">
+        <div>
+          <div>${t.name} den</div>
+          <small style="color:#8aa094">${t.biome} · ${t.bots} hunters</small>
+        </div>
+        <b>${t.stakeXrp} XRP</b>
+      </div>`
+    ).join("");
+    el.querySelectorAll(".tier").forEach((n) => {
+      n.onclick = () => {
+        state.tier = TIERS.find((t) => t.id === n.dataset.id);
+        renderTiers();
+        renderMeta();
+      };
+    });
+  }
+
+  function renderSkins() {
+    const el = document.getElementById("skins");
+    el.innerHTML = PRESET_SKINS.map(
+      (s, i) =>
+        `<div class="skin ${state.skin.a === s.a ? "sel" : ""}" data-i="${i}" style="background:linear-gradient(90deg,${s.a},${s.b})"></div>`
+    ).join("");
+    el.querySelectorAll(".skin").forEach((n) => {
+      n.onclick = () => {
+        const s = PRESET_SKINS[+n.dataset.i];
+        state.skin.a = s.a;
+        state.skin.b = s.b;
+        save();
+        renderSkins();
+      };
+    });
+    document.getElementById("species").value = state.skin.species;
+    document.getElementById("pattern").value = state.skin.pattern;
+    const hornEl = document.getElementById("horn");
+    const tailEl = document.getElementById("tail");
+    if (hornEl) hornEl.value = state.skin.horn || "none";
+    if (tailEl) tailEl.value = state.skin.tail || "none";
+    paintPreview();
+  }
+
+  function paintPreview(now) {
+    if (typeof now === "number") paintPreview.t = now;
+    const c = document.getElementById("skin-preview");
+    if (!c) return;
+    const g = c.getContext("2d");
+    g.fillStyle = "#07140c";
+    g.fillRect(0, 0, c.width, c.height);
+    const t = (typeof paintPreview.t === "number" ? paintPreview.t : performance.now()) / 220;
+    const pts = [];
+    for (let i = 0; i < 18; i++) {
+      const x = 250 - i * 11 + Math.sin(t * 0.4) * 8;
+      const y = 70 + Math.sin(i * 0.42 - t) * 18;
+      pts.push({ x, y });
+    }
+    const rad0 = 8;
+    const pat = state.skin.pattern;
+    for (let i = pts.length - 1; i >= 1; i--) {
+      const p = pts[i], nxt = pts[i - 1];
+      const ang = Math.atan2(nxt.y - p.y, nxt.x - p.x);
+      const t = i / pts.length;
+      const rad = rad0 * (1.12 - t * 0.68);
+      const col = patternColor(i, pat, state.skin.a, state.skin.b);
+      g.save();
+      g.translate(p.x, p.y);
+      g.rotate(ang);
+      g.fillStyle = col;
+      g.beginPath();
+      g.ellipse(0, 0, rad * 1.45, rad * 0.7, 0, 0, Math.PI * 2);
+      g.fill();
+      g.restore();
+    }
+    if ((state.skin.tail || "none") === "rattle") {
+      const tail = pts[pts.length - 1];
+      g.fillStyle = "#c4a36a";
+      for (let k = 0; k < 4; k++) {
+        g.beginPath();
+        g.ellipse(tail.x - 8 - k * 5, tail.y, 4.2 - k * 0.4, 3.1 - k * 0.2, 0, 0, Math.PI * 2);
+        g.fill();
+      }
+    }
+    const hx = pts[0].x, hy = pts[0].y, R = rad0 * 1.35;
+    g.save();
+    g.translate(hx, hy);
+    if (state.skin.species === "cobra") {
+      g.fillStyle = state.skin.b;
+      g.beginPath();
+      g.moveTo(-R * 0.15, 0);
+      g.quadraticCurveTo(-R * 1.2, -R * 2, R * 0.1, -R * 2.3);
+      g.quadraticCurveTo(R * 1.4, 0, R * 0.2, R * 0.4);
+      g.closePath();
+      g.fill();
+    }
+    g.fillStyle = state.skin.a;
+    g.beginPath();
+    g.ellipse(R * 0.35, 0, R * 1.45, R * 0.8, 0, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = state.skin.eyes || "#ffe9a8";
+    g.beginPath();
+    g.ellipse(R * 0.7, -R * 0.32, R * 0.22, R * 0.14, 0.2, 0, Math.PI * 2);
+    g.ellipse(R * 0.7, R * 0.32, R * 0.22, R * 0.14, -0.2, 0, Math.PI * 2);
+    g.fill();
+    const horn = state.skin.horn || "none";
+    if (horn !== "none") {
+      g.fillStyle = "#e8d7a8";
+      const h1 = horn === "crown" ? R * 1.1 : R * 0.8;
+      g.beginPath();
+      g.moveTo(R * 0.1, -R * 0.5);
+      g.lineTo(0, -R * 0.5 - h1);
+      g.lineTo(R * 0.4, -R * 0.35);
+      g.fill();
+      g.beginPath();
+      g.moveTo(R * 0.1, R * 0.5);
+      g.lineTo(0, R * 0.5 + h1);
+      g.lineTo(R * 0.4, R * 0.35);
+      g.fill();
+    }
+    g.restore();
+    g.fillStyle = "#d7efe4";
+    g.font = "12px Trebuchet MS";
+    g.textAlign = "center";
+    g.fillText(state.playerName, hx, hy - 22);
+  }
+
+  function resize() {
+    const wrap = canvas.parentElement;
+    const vv = window.visualViewport;
+    canvas.width = wrap.clientWidth || window.innerWidth;
+    canvas.height = wrap.clientHeight || (vv ? vv.height : window.innerHeight);
+    const app = document.getElementById("app");
+    if (app && window.innerWidth <= 980 && state.mode !== "play") {
+      const s = Math.min(window.innerWidth / 1100, window.innerHeight / 720);
+      app.style.transform = "scale(" + s + ")";
+    } else if (app) app.style.transform = "";
+  }
+  window.addEventListener("resize", resize);
+  if (window.visualViewport) visualViewport.addEventListener("resize", resize);
+  document.addEventListener("fullscreenchange", resize);
+  document.addEventListener("webkitfullscreenchange", resize);
+
+  canvas.addEventListener("mousemove", pointFromEvent);
+  canvas.addEventListener("mousedown", (e) => {
+    pointFromEvent(e);
+  });
+  canvas.addEventListener("touchstart", (e) => {
+    if (e.target.closest && e.target.closest("#boost-btn, #cash")) return;
+    e.preventDefault();
+    pointFromEvent(e);
+  }, { passive: false });
+  canvas.addEventListener("touchmove", (e) => {
+    e.preventDefault();
+    pointFromEvent(e);
+  }, { passive: false });
+
+  const stickEl = document.getElementById("stick");
+  const knobEl = document.getElementById("stick-knob");
+  function moveStick(e) {
+    if (!stickEl) return;
+    const t = e.touches ? e.touches[0] : e;
+    if (!t) return;
+    const r = stickEl.getBoundingClientRect();
+    const cx = r.left + r.width / 2;
+    const cy = r.top + r.height / 2;
+    let dx = t.clientX - cx;
+    let dy = t.clientY - cy;
+    const max = r.width * 0.32;
+    const len = Math.hypot(dx, dy) || 1;
+    if (len > max) { dx = dx / len * max; dy = dy / len * max; }
+    state.stick.on = true;
+    state.stick.x = dx / max;
+    state.stick.y = dy / max;
+    if (knobEl) {
+      knobEl.style.transform = "translate(" + dx + "px," + dy + "px)";
+    }
+  }
+  function endStick() {
+    state.stick.on = false;
+    if (knobEl) knobEl.style.transform = "";
+  }
+  if (stickEl) {
+    stickEl.addEventListener("touchstart", (e) => { e.preventDefault(); moveStick(e); }, { passive: false });
+    stickEl.addEventListener("touchmove", (e) => { e.preventDefault(); moveStick(e); }, { passive: false });
+    stickEl.addEventListener("touchend", endStick);
+    stickEl.addEventListener("touchcancel", endStick);
+  }
+  const boostBtn = document.getElementById("boost-btn");
+  function boostOn(e) {
+    if (e) e.preventDefault();
+    state.boosting = true;
+    boostBtn.classList.add("held");
+  }
+  function boostOff(e) {
+    if (e) e.preventDefault();
+    state.boosting = false;
+    boostBtn.classList.remove("held");
+  }
+  boostBtn.addEventListener("mousedown", boostOn);
+  boostBtn.addEventListener("touchstart", boostOn, { passive: false });
+  window.addEventListener("mouseup", boostOff);
+  window.addEventListener("touchend", boostOff);
+  window.addEventListener("touchcancel", boostOff);
+
+  window.addEventListener("keydown", (e) => {
+    if (e.code === "Space") { e.preventDefault(); state.boosting = true; }
+    if (e.key === "e" || e.key === "E") doEmote();
+    if ((e.key === "q" || e.key === "Q") && !e.repeat) beginCashHold();
+  });
+  window.addEventListener("keyup", (e) => {
+    if (e.code === "Space") state.boosting = false;
+    if (e.key === "q" || e.key === "Q") cancelCashHold();
+  });
+
+  document.querySelectorAll(".tab-btn").forEach((btn) => {
+    btn.onclick = () => {
+      const app = document.getElementById("app");
+      const cls = btn.dataset.panel === "left" ? "sheet-left" : "sheet-right";
+      const on = !app.classList.contains(cls);
+      app.classList.remove("sheet-left", "sheet-right");
+      if (on) app.classList.add(cls);
+    };
+  });
+
+  function thisSundayDusk() {
+    const d = new Date();
+    const sun = new Date(d);
+    sun.setDate(d.getDate() - d.getDay());
+    sun.setHours(18, 0, 0, 0);
+    return sun;
+  }
+  function nextSunday() {
+    const dusk = thisSundayDusk();
+    if (Date.now() < dusk.getTime()) return dusk;
+    const n = new Date(dusk);
+    n.setDate(n.getDate() + 7);
+    return n;
+  }
+  function coilWindowOpen() {
+    return Date.now() >= thisSundayDusk().getTime();
+  }
+  function npcTicketCount() {
+    const seed = (weekKey() || "w").split("").reduce((a, c) => a + c.charCodeAt(0), 0);
+    return 18 + (seed % 40);
+  }
+  function fluteSfx() {
+    try {
+      const ac = new (window.AudioContext || window.webkitAudioContext)();
+      const now = ac.currentTime;
+      [523, 587, 659, 698, 659, 587, 523].forEach((f, i) => {
+        const o = ac.createOscillator();
+        const g = ac.createGain();
+        o.type = "sine";
+        o.frequency.value = f;
+        g.gain.setValueAtTime(0.0001, now + i * 0.28);
+        g.gain.exponentialRampToValueAtTime(0.08, now + i * 0.28 + 0.04);
+        g.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.28 + 0.26);
+        o.connect(g);
+        g.connect(ac.destination);
+        o.start(now + i * 0.28);
+        o.stop(now + i * 0.28 + 0.28);
+      });
+    } catch (_) {}
+  }
+  function refreshCoilPage() {
+    const left = nextSunday() - Date.now();
+    const el = document.getElementById("coil-count");
+    if (el) {
+      if (left <= 0) el.textContent = "The coil is ready to shed.";
+      else {
+        const h = Math.floor(left / 3600000);
+        const m = Math.floor((left % 3600000) / 60000);
+        const s = Math.floor((left % 60000) / 1000);
+        el.textContent = "Draw in " + h + "h " + m + "m " + s + "s";
+      }
+    }
+    const yours = state.meta.tickets || 0;
+    const pool = yours + npcTicketCount();
+    const potEl = document.getElementById("coil-pot");
+    if (potEl) potEl.textContent = (state.meta.seasonPot || 0).toFixed(3);
+    const usdEl = document.getElementById("coil-pot-usd");
+    if (usdEl) usdEl.textContent = usd(state.meta.seasonPot || 0);
+    const tEl = document.getElementById("coil-tickets");
+    if (tEl) tEl.textContent = String(pool);
+    const yEl = document.getElementById("coil-yours");
+    if (yEl) yEl.textContent = String(yours);
+    const res = document.getElementById("coil-result");
+    if (res && state.meta.lastCoilWeek === weekKey() && state.meta.lastCoilWin) {
+      res.textContent = "This Sunday's ticket: #" + state.meta.lastCoilWin + " (locked)";
+    }
+    const btn = document.getElementById("coil-draw");
+    if (btn) {
+      if (state.meta.lastCoilWeek === weekKey() && state.meta.lastCoilWin) btn.textContent = "Drawn this Sunday";
+      else if (!coilWindowOpen()) btn.textContent = "The coil still sleeps";
+      else btn.textContent = "Play the flute";
+    }
+    const wb = document.getElementById("coil-winners");
+    if (wb) {
+      const rows = state.coilWins || [];
+      wb.innerHTML = rows.length
+        ? rows.slice(0, 12).map((s) => `<tr><td>${escapeHtml(s.name)}</td><td>${Number(s.xrp).toFixed(3)}</td><td>${usd(s.xrp)}</td></tr>`).join("")
+        : `<tr><td colspan="3">No sheds yet.</td></tr>`;
+    }
+  }
+  function playCoilBite() {
+    const vid = document.getElementById("coil-vid");
+    const snake = document.getElementById("coil-snake");
+    const num = document.getElementById("coil-num");
+    const res = document.getElementById("coil-result");
+    hissSfx(true);
+    if (snake) snake.classList.add("hidden");
+    if (vid) {
+      try { vid.currentTime = 0; vid.play(); } catch (_) {}
+    }
+    const lines = [
+      "The coil still sleeps. Come back after dusk.",
+      "Too early to shed, hunter.",
+      "Fang closed. Sunday after 6.",
+    ];
+    const line = lines[Math.floor(Math.random() * lines.length)];
+    setTimeout(() => {
+      if (snake) {
+        snake.innerHTML = "Not dusk yet.";
+        snake.classList.remove("hidden");
+      }
+      if (res) res.textContent = line;
+      toast(line);
+    }, 5200);
+  }
+  function runCoilDraw() {
+    const already = state.meta.lastCoilWeek === weekKey() && state.meta.lastCoilWin;
+    if (already) {
+      const res = document.getElementById("coil-result");
+      const snake = document.getElementById("coil-snake");
+      const vid = document.getElementById("coil-vid");
+      if (vid) { try { vid.pause(); } catch (_) {} }
+      if (snake) snake.classList.add("hidden");
+      if (res) res.textContent = "Already shed this Sunday. Ticket #" + state.meta.lastCoilWin + ". Try again next week.";
+      toast("Try again next Sunday.");
+      return;
+    }
+    const yours = state.meta.ticketIds && state.meta.ticketIds.length
+      ? state.meta.ticketIds.slice()
+      : Array.from({ length: state.meta.tickets || 0 }, (_, i) => 1001 + i);
+    const npc = npcTicketCount();
+    const pool = yours.concat(Array.from({ length: npc }, (_, i) => 5000 + i));
+    if (!already && !coilWindowOpen()) {
+      playCoilBite();
+      return;
+    }
+    if (!already && !pool.length) {
+      toast("No tickets in the pot.");
+      return;
+    }
+    fluteSfx();
+    const vid = document.getElementById("coil-vid");
+    const snake = document.getElementById("coil-snake");
+    const num = document.getElementById("coil-num");
+    const res = document.getElementById("coil-result");
+    if (snake) snake.classList.add("hidden");
+    if (vid) {
+      try { vid.currentTime = 0; vid.muted = false; vid.play(); } catch (_) {}
+    }
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      const win = already ? state.meta.lastCoilWin : pool[Math.floor(Math.random() * pool.length)];
+      if (snake) {
+        snake.innerHTML = "Ticket <span id=\"coil-num\">#" + win + "</span>";
+        snake.classList.remove("hidden");
+      }
+      if (already) {
+        if (res) res.textContent = "This Sunday already shed ticket #" + win + ". One draw a week.";
+        toast("Same ticket — next Sunday.");
+        return;
+      }
+      const mine = yours.map(String).indexOf(String(win)) >= 0;
+      state.meta.lastCoilWeek = weekKey();
+      state.meta.lastCoilWin = String(win);
+      const prize = state.meta.seasonPot || 0;
+      const who = mine ? state.playerName : BOT_NAMES[Math.floor(Math.random() * BOT_NAMES.length)];
+      if (mine) {
+        state.balanceXrp = +(state.balanceXrp + prize).toFixed(6);
+        if (res) res.textContent = "Your ticket #" + win + " · pot paid " + prize.toFixed(3) + " XRP";
+        toast("Coil shed — you won");
+      } else {
+        if (res) res.textContent = "Ticket #" + win + " was drawn. Locked until next Sunday.";
+        toast("Coil shed — another hunter");
+      }
+      state.meta.seasonPot = 0;
+      state.coilWins = [{ name: who, xrp: prize, at: Date.now() }].concat(state.coilWins || []).slice(0, 30);
+      const btn = document.getElementById("coil-draw");
+      if (btn) btn.textContent = "Drawn this Sunday";
+      save();
+      renderMeta();
+    };
+    if (vid) {
+      vid.onended = finish;
+      setTimeout(finish, 6500);
+    } else setTimeout(finish, 2200);
+  }
+  const openCoil = document.getElementById("open-coil");
+  if (openCoil) openCoil.onclick = () => {
+    const p = document.getElementById("coil-page");
+    if (p) p.classList.remove("hidden");
+    refreshCoilPage();
+  };
+  function closeCoil() {
+    const p = document.getElementById("coil-page");
+    if (p) p.classList.add("hidden");
+  }
+  document.querySelectorAll(".coil-close-btn").forEach((b) => { b.onclick = closeCoil; });
+  const coilPage = document.getElementById("coil-page");
+  if (coilPage) coilPage.addEventListener("click", (e) => { if (e.target === coilPage) closeCoil(); });
+  const coilDraw = document.getElementById("coil-draw");
+  if (coilDraw) coilDraw.onclick = runCoilDraw;
+  setInterval(refreshCoilPage, 1000);
+
+  tap(document.getElementById("join"), async () => {
+    if (state.world && state.mode === "play" && state.world.watch) {
+      toast("Leave the den before you hunt.");
+      return;
+    }
+    if (state.mode === "play" && state.world && !state.world.watch) {
+      toast("You're already in the pit.");
+      return;
+    }
+    if (!gateTestnetHunt()) return;
+    // Room check before Payment so a full den never burns a lock.
+    let roomOk = true;
+    try {
+      const rr = await fetch(DEN_SERVER + "/room/jungle?name=" + encodeURIComponent(state.playerName));
+      const j = await rr.json().catch(() => ({}));
+      if (j && j.full) {
+        toast("Den is full. Eight hunters max.");
+        return;
+      }
+      toast("Jungle: " + ((j && j.who) ? j.who.join(", ") : state.playerName));
+      window.apexRoom = "jungle";
+    } catch (_) {
+      toast("Den server not reached — local pit");
+      roomOk = false;
+    }
+    // Always fresh lock on Testnet (startMatch ignores skipLock for paid dens).
+    await startMatch();
+  });
+  
+  let incomingChal = null;
+  function hideChalBanner() {
+    const b = document.getElementById("chal-banner");
+    if (b) b.classList.add("hidden");
+    incomingChal = null;
+  }
+  function showChalBanner(from, amt) {
+    incomingChal = { from, amt };
+    const b = document.getElementById("chal-banner");
+    const t = document.getElementById("chal-banner-text");
+    if (t) t.textContent = "You have been challenged by " + from + " for " + amt + " XRP. Accept?";
+    if (b) b.classList.remove("hidden");
+  }
+  ["chal-name", "chal-amt", "chat-in"].forEach((id) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener("touchend", (e) => {
+      e.stopPropagation();
+      setTimeout(() => el.focus(), 0);
+    });
+  });
+  const chalSend = document.getElementById("chal-send");
+  tap(chalSend, () => {
+    const who = cleanName((document.getElementById("chal-name") || {}).value || "");
+    const amt = clampNum((document.getElementById("chal-amt") || {}).value, 1, 0.25, 20);
+    if (!who || nameKey(who) === nameKey(state.playerName)) {
+      toast("Pick another hunter.");
+      return;
+    }
+    const target = findHunter(who);
+    if (!target) {
+      toast("No hunter by that username.");
+      return;
+    }
+    if (state.balanceXrp < amt) {
+      toast("Not enough XRP to post that pot.");
+      return;
+    }
+    if (state.mode === "play") {
+      toast("Finish the den first.");
+      return;
+    }
+    pushChat("den", state.playerName + " challenged " + target.name + " for " + amt + " XRP.", true);
+    toast("Challenge sent to " + target.name);
+    if (window.apexSock && window.apexSock.readyState === 1) {
+      window.apexSock.send(JSON.stringify({ t: "chal", from: state.playerName, to: target.name, amt: amt }));
+    }
+  });
+  const chalYes = document.getElementById("chal-yes");
+  const chalNo = document.getElementById("chal-no");
+  if (chalYes) chalYes.onclick = () => {
+    if (!incomingChal) return;
+    const amt = incomingChal.amt;
+    const from = incomingChal.from;
+    if (state.balanceXrp < amt) {
+      toast("Not enough XRP to accept.");
+      hideChalBanner();
+      return;
+    }
+    state.balanceXrp = +(state.balanceXrp - amt).toFixed(6);
+    state.challengePot = +(amt * 2).toFixed(4);
+    save();
+    renderMeta();
+    pushChat("den", state.playerName + " accepted " + from + " · pot " + state.challengePot + " XRP.", true);
+    hideChalBanner();
+    toast("Private 1v1 vs " + from);
+    window.apexRoom = "duel-" + [state.playerName, from].sort().join("-");
+    if (window.apexSock && window.apexSock.readyState === 1) {
+      window.apexSock.send(JSON.stringify({ t: "name", name: state.playerName, room: window.apexRoom }));
+      window.apexSock.send(JSON.stringify({ t: "chalok", from: state.playerName, to: from, amt: amt }));
+    }
+    startMatch({ duel: { name: from, amt } });
+  };
+  if (chalNo) chalNo.onclick = () => {
+    if (incomingChal) pushChat("den", state.playerName + " denied " + incomingChal.from + ".", true);
+    hideChalBanner();
+    toast("Challenge denied.");
+  };
+  const specBtn = document.getElementById("spectate");
+  if (specBtn) specBtn.onclick = () => {
+    if (state.mode === "play" && state.world && !state.world.watch && state.world.snakes[0] && state.world.snakes[0].alive) {
+      toast("Watch after you drop. Hunt or die first.");
+      return;
+    }
+    if (state.mode === "play" && state.world && state.world.watch) {
+      toast("Already watching. Leave den first.");
+      return;
+    }
+    startMatch({ watch: true });
+    const w = state.world;
+    if (!w) return;
+    w.watch = true;
+    w.watchFocus = 1;
+    w.snakes[0].isPlayer = false;
+    w.snakes[0].stake = 0;
+    applyWatchUi(true);
+    cycleWatch(1);
+    toast("Watching free. No stake.");
+  };
+
+  function applyWatchUi(on) {
+    const cash = document.getElementById("cash");
+    const emote = document.getElementById("emote");
+    const watch = document.getElementById("watch-ui");
+    const boost = document.getElementById("touch-ui");
+    if (cash) cash.style.display = on ? "none" : "";
+    if (emote) emote.style.display = on ? "none" : "";
+    if (watch) {
+      watch.classList.toggle("hidden", !on);
+      watch.style.display = on ? "block" : "none";
+    }
+    if (boost) {
+      if (on) boost.style.display = "none";
+      else boost.style.display = "";
+    }
+  }
+  function watchTarget() {
+    const w = state.world;
+    if (!w) return null;
+    const alive = w.snakes.filter((s) => s.alive && s.pts[0]);
+    if (!alive.length) return null;
+    if (w.watchFocus == null || !w.snakes[w.watchFocus] || !w.snakes[w.watchFocus].alive) {
+      w.watchFocus = w.snakes.indexOf(alive[0]);
+    }
+    return w.snakes[w.watchFocus];
+  }
+  function cycleWatch(dir) {
+    const w = state.world;
+    if (!w) return;
+    const idxs = [];
+    w.snakes.forEach((s, i) => { if (s.alive && s.pts[0]) idxs.push(i); });
+    if (!idxs.length) return;
+    let p = idxs.indexOf(w.watchFocus);
+    if (p < 0) p = 0;
+    w.watchFocus = idxs[(p + dir + idxs.length) % idxs.length];
+    const s = w.snakes[w.watchFocus];
+    const el = document.getElementById("watch-pov");
+    if (el && s) el.textContent = s.name;
+    if (s.pts[0]) {
+      w.cam.x = s.pts[0].x;
+      w.cam.y = s.pts[0].y;
+    }
+  }
+  function leaveWatch() {
+    applyWatchUi(false);
+    state.world = null;
+    state.mode = "lobby";
+    setPlayingLayout(false);
+    resize();
+    renderMeta();
+    renderBoard();
+    toast("Left the den.");
+  }
+  const povPrev = document.getElementById("pov-prev");
+  const povNext = document.getElementById("pov-next");
+  const leaveDen = document.getElementById("leave-den");
+  if (povPrev) povPrev.onclick = () => cycleWatch(-1);
+  if (povNext) povNext.onclick = () => cycleWatch(1);
+  if (leaveDen) leaveDen.onclick = leaveWatch;
+  const charmEl = document.getElementById("charm");
+  if (charmEl) charmEl.onchange = () => {
+    state.meta.charm = charmEl.value;
+    save();
+  };
+  const emoteBtn = document.getElementById("emote");
+  function doEmote() {
+    if (!state.world || state.mode !== "play") return;
+    state.world.emoteUntil = performance.now() + 1200;
+    hissSfx(true);
+  }
+  if (emoteBtn) emoteBtn.onclick = doEmote;
+  const cashBtn = document.getElementById("cash");
+  let cashHold = null;
+  let cashStarted = 0;
+  const CASH_HOLD_S = 5;
+  function cashBtnLabel(t) {
+    cashBtn.textContent = t == null ? "Hold 5s to cash out" : "Cashing out " + t.toFixed(1) + "s";
+  }
+  function cashHoldElapsed() {
+    return cashStarted ? (performance.now() - cashStarted) / 1000 : 0;
+  }
+  function finishCashHold(force) {
+    const elapsed = cashHoldElapsed();
+    if (cashHold) clearInterval(cashHold);
+    cashHold = null;
+    const started = cashStarted;
+    cashStarted = 0;
+    cashBtnLabel(null);
+    if (state.mode === "play" && started && (force || elapsed >= CASH_HOLD_S)) {
+      cashOut();
+    }
+  }
+  function beginCashHold(e) {
+    if (e) e.preventDefault();
+    if (state.mode !== "play" || cashHold) return;
+    cashStarted = performance.now();
+    cashBtnLabel(CASH_HOLD_S);
+    cashHold = setInterval(() => {
+      const left = CASH_HOLD_S - cashHoldElapsed();
+      if (state.mode !== "play") { finishCashHold(false); return; }
+      if (left <= 0) {
+        finishCashHold(true);
+        return;
+      }
+      cashBtnLabel(left);
+    }, 50);
+  }
+  cashBtn.addEventListener("mousedown", beginCashHold);
+  cashBtn.addEventListener("touchstart", beginCashHold, { passive: false });
+  cashBtn.addEventListener("mouseup", () => finishCashHold(false));
+  cashBtn.addEventListener("touchend", () => finishCashHold(false));
+  cashBtn.addEventListener("touchcancel", () => finishCashHold(false));
+  document.getElementById("species").onchange = (e) => {
+    state.skin.species = e.target.value;
+    save();
+    paintPreview();
+  };
+  document.getElementById("pattern").onchange = (e) => {
+    state.skin.pattern = e.target.value;
+    save();
+    paintPreview();
+  };
+  const hornEl = document.getElementById("horn");
+  if (hornEl) hornEl.onchange = () => {
+    state.skin.horn = hornEl.value;
+    save();
+    paintPreview();
+  };
+  const tailEl = document.getElementById("tail");
+  if (tailEl) tailEl.onchange = () => {
+    state.skin.tail = tailEl.value;
+    save();
+    paintPreview();
+  };
+  document.getElementById("rename").onclick = () => {
+    const n = prompt("Username", state.playerName);
+    if (!n) return;
+    const next = cleanName(n);
+    if (usernameTaken(next, true)) {
+      toast("That username is taken.");
+      return;
+    }
+    const row = state.board.find((b) => b.name === state.playerName);
+    state.playerName = next;
+    if (row) row.name = next;
+    save();
+    renderMeta();
+    renderBoard();
+    toast("Username set to " + next);
+  };
+  function tap(el, fn) {
+    if (!el) return;
+    el.addEventListener("click", fn);
+  }
+  document.addEventListener("touchend", (e) => {
+    if (e.target.closest("input, select, textarea, label, option")) return;
+    // Do not intercept Xaman SignIn anchors inside the modal
+    if (e.target.closest("#modal-body a, #xaman-open, #xaman-deep")) return;
+    const hit = e.target.closest("button, .btn, .tier, .skin, .wallet-btn, #intro-skip, .tab-btn, .sheet-x");
+    if (!hit) return;
+    hit.click();
+  });
+  document.addEventListener("click", (e) => {
+    // Guard: never let global UI handlers swallow Xaman deep links
+    if (e.target.closest("#modal-body a, #xaman-open, #xaman-deep")) return;
+  }, true);
+  document.querySelectorAll("select, input[type=checkbox], input[type=text], input[type=number], textarea").forEach((el) => {
+    el.addEventListener("touchend", (e) => {
+      e.stopPropagation();
+      try { el.focus(); } catch (_) {}
+    });
+  });
+  tap(document.getElementById("add-funds"), () => {
+    if (effectiveNetwork() === "testnet") {
+      toast("Test chips are off on Testnet. Link Xaman and use real Testnet XRP next.");
+      return;
+    }
+    state.balanceXrp = +(state.balanceXrp + 25).toFixed(3);
+    save();
+    renderMeta();
+    toast("Simulated +25 XRP (test chips only)");
+  });
+  const rankView = document.getElementById("rank-view");
+  const rankClose = document.getElementById("rank-close");
+  const rankModal = document.getElementById("rank-modal");
+  if (rankView) rankView.onclick = openRankLadder;
+  function closeRanks() { if (rankModal) rankModal.classList.add("hidden"); }
+  if (rankClose) rankClose.onclick = closeRanks;
+  document.querySelectorAll(".rank-close-btn").forEach((b) => { b.onclick = closeRanks; });
+  if (rankModal) rankModal.addEventListener("click", (e) => {
+    if (e.target === rankModal) rankModal.classList.add("hidden");
+  });
+
+  const SLOT_FACES = ["💀", "🌿", "🦷", "✕", "👑"];
+  let slotBusy = false;
+  function rollHouseSlots() {
+    const r = Math.random();
+    if (r < 0.68) return { faces: [SLOT_FACES[0], SLOT_FACES[1], SLOT_FACES[2]], mult: 0 };
+    if (r < 0.94) return { faces: [SLOT_FACES[1], SLOT_FACES[1], SLOT_FACES[2]], mult: 0.2 };
+    if (r < 0.98) return { faces: [SLOT_FACES[1], SLOT_FACES[1], SLOT_FACES[1]], mult: 0.45 };
+    if (r < 0.995) return { faces: [SLOT_FACES[2], SLOT_FACES[2], SLOT_FACES[2]], mult: 1.1 };
+    if (r < 0.999) return { faces: [SLOT_FACES[3], SLOT_FACES[3], SLOT_FACES[3]], mult: 2.2 };
+    return { faces: [SLOT_FACES[4], SLOT_FACES[4], SLOT_FACES[4]], mult: 5 };
+  }
+  if (document.getElementById("slots-spin")) document.getElementById("slots-spin").onclick = () => {
+    if (slotBusy || state.mode === "play") {
+      toast(state.mode === "play" ? "Finish the den first." : "Reels are spinning.");
+      return;
+    }
+    const bet = clampNum(document.getElementById("slots-bet").value, 0.25, 0.25, 5);
+    const expCost = 25;
+    if (state.balanceXrp < bet) { toast("Not enough XRP for that stake."); return; }
+    if (state.exp < expCost) { toast("Need 25 EXP to pull the lever."); return; }
+    slotBusy = true;
+    state.balanceXrp = +(state.balanceXrp - bet).toFixed(6);
+    state.exp -= expCost;
+    upsertBoardExp();
+    save();
+    renderMeta();
+    renderRank();
+    const reels = [...document.querySelectorAll("#slots-reels .reel")];
+    reels.forEach((el) => el.classList.remove("win"));
+    let ticks = 0;
+    const flicker = setInterval(() => {
+      reels.forEach((el) => { el.textContent = SLOT_FACES[Math.floor(Math.random() * SLOT_FACES.length)]; });
+      ticks++;
+      if (ticks > 10) {
+        clearInterval(flicker);
+        const hit = rollHouseSlots();
+        reels.forEach((el, i) => { el.textContent = hit.faces[i]; });
+        const payout = +(bet * hit.mult).toFixed(4);
+        if (payout > 0) {
+          state.balanceXrp = +(state.balanceXrp + payout).toFixed(6);
+          reels.forEach((el) => el.classList.add("win"));
+          document.getElementById("slots-out").textContent = `Hit ${hit.mult}x · +${payout} XRP`;
+          toast("The pit pays. +" + payout + " XRP");
+        } else {
+          state.feePaidTotal = +(state.feePaidTotal + bet).toFixed(4);
+          document.getElementById("slots-out").textContent = "The coils miss. Stake slips into the den.";
+          toast("No line this time.");
+        }
+        save();
+        renderMeta();
+        renderBoard();
+        slotBusy = false;
+      }
+    }, 70);
+  };
+  document.getElementById("save-treasury").onclick = () => {
+    toast("Treasury is baked into the build. Edit OWNER_TREASURY in game.js.");
+  };
+  if (OWNER_TREASURY) state.treasury = OWNER_TREASURY;
+  const tin = document.getElementById("treasury-in");
+  if (tin) {
+    tin.value = OWNER_TREASURY || "(set OWNER_TREASURY in game.js)";
+    tin.readOnly = true;
+  }
+  document.getElementById("network").value = state.network;
+  document.getElementById("network").onchange = () => {
+    state.network = document.getElementById("network").value === "testnet" ? "testnet" : "simulated";
+    save();
+    syncNetworkUi();
+    renderMeta();
+    renderWallets();
+    toast(state.network === "testnet" ? "Network: XRPL Testnet" : "Network: simulated");
+  };
+  syncNetworkUi();
+
+  const WALLETS = [
+    { id: "xaman", name: "Xaman", via: "XRP Ledger · sign in app" },
+    { id: "ledger", name: "Ledger", via: "USB / Bluetooth + XRP app" },
+    { id: "bifrost", name: "Bifrost Wallet", via: "WalletConnect deep link" },
+    { id: "dcent", name: "D'CENT", via: "WalletConnect / biometric" },
+    { id: "walletconnect", name: "WalletConnect", via: "QR or in-app approve" },
+  ];
+
+  function mockClassicAddress(seed) {
+    const alphabet = "rpshnaf39wBUDNEGHJKLM4PQRST7VWXYZ2bcdeCg65jkm8oFqi1tuvAxyz";
+    let s = "r";
+    let n = Math.abs(hashStr(seed + String(Date.now())));
+    for (let i = 0; i < 24; i++) {
+      s += alphabet[n % alphabet.length];
+      n = (n * 1664525 + 1013904223) >>> 0;
+    }
+    return s;
+  }
+  function hashStr(str) {
+    let h = 2166136261;
+    for (let i = 0; i < str.length; i++) h = Math.imul(h ^ str.charCodeAt(i), 16777619);
+    return h;
+  }
+
+  function renderWallets() {
+    syncNetworkUi();
+    const grid = document.getElementById("wallet-grid");
+    const disc = document.getElementById("wallet-disconnect");
+    const status = document.getElementById("wallet-status");
+    if (!grid) return;
+    grid.innerHTML = "";
+    for (const w of WALLETS) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "wallet-btn" + (state.wallet && state.wallet.id === w.id ? " on" : "");
+      btn.innerHTML = `<strong>${w.name}</strong><small>${w.via}</small>`;
+      tap(btn, () => connectWallet(w));
+      grid.appendChild(btn);
+    }
+    if (state.wallet) {
+      disc.style.display = "block";
+      status.textContent = state.wallet.network === "testnet"
+        ? `${state.wallet.name} · ${state.wallet.address.slice(0, 8)}…${state.wallet.address.slice(-5)} · ${state.balanceXrp.toFixed(3)} XRP Testnet`
+        : `${state.wallet.name} · ${state.wallet.address.slice(0, 8)}…${state.wallet.address.slice(-5)} · session only, no mainnet send`;
+      if (hasTestnetXaman()) {
+        if (!_balAddr || _balAddr !== state.wallet.address) {
+          _balAddr = state.wallet.address;
+          scheduleBalanceRefresh();
+        } else {
+          refreshTestnetWalletBalance(false);
+        }
+      }
+      document.getElementById("net-out").textContent = state.wallet.id;
+    } else {
+      disc.style.display = "none";
+      status.textContent = "No wallet linked. Test chips only. Mainnet send is off.";
+    }
+  }
+
+  function connectWallet(w) {
+    toast("Opening " + w.name + "…");
+    overlay.classList.remove("hidden");
+    const box = document.getElementById("modal-body");
+    if (w.id === "xaman") {
+      let pollTimer = null;
+      const stopPoll = () => {
+        if (pollTimer) {
+          clearInterval(pollTimer);
+          pollTimer = null;
+        }
+      };
+      const closeModal = () => {
+        stopPoll();
+        overlay.classList.add("hidden");
+      };
+      box.innerHTML = `
+        <h3>Xaman</h3>
+        <p>Scan in Xaman (Testnet). Mainnet accounts will be rejected.</p>
+        <p class="tiny" id="xaman-wait">Requesting SignIn…</p>
+        <div id="xaman-qr-wrap" style="text-align:center;margin:12px 0"></div>
+        <p class="tiny"><a id="xaman-open" href="#" rel="noopener noreferrer">Open Xaman</a>
+        · <a id="xaman-deep" href="#" rel="noopener noreferrer">Open sign link</a></p>
+        <p class="tiny" id="xaman-url" style="word-break:break-all;margin-top:8px"></p>
+        <button class="btn ghost" id="xaman-copy" type="button" style="margin-top:6px">Copy sign URL</button>
+        <button class="btn ghost" id="wc-no">Cancel</button>`;
+      document.getElementById("wc-no").onclick = closeModal;
+
+      (async () => {
+        try {
+          const res = await fetch(DEN_SERVER + "/xaman/signin", { method: "POST" });
+          const data = await res.json().catch(() => ({}));
+          if (res.status === 503 || data.reason === "XUMM_API_KEY/SECRET not configured") {
+            toast("Xaman API keys must be set on the Railway server (XUMM_API_KEY / XUMM_API_SECRET).");
+            document.getElementById("xaman-wait").textContent = "Server missing Xaman API keys.";
+            return;
+          }
+          if (!res.ok || !data.uuid) {
+            toast(data.reason || "Could not start Xaman SignIn.");
+            document.getElementById("xaman-wait").textContent = data.reason || "SignIn failed to start.";
+            return;
+          }
+          const deep = data.deepLink || ("https://xumm.app/sign/" + data.uuid);
+          const deepHttps = deep.indexOf("http") === 0 ? deep : ("https://xumm.app/sign/" + data.uuid);
+          const deepApp = "xumm://xumm.app/sign/" + data.uuid;
+          const isPhone = ("ontouchstart" in window) || (window.matchMedia && window.matchMedia("(max-width: 900px)").matches);
+          const openA = document.getElementById("xaman-open");
+          const deepA = document.getElementById("xaman-deep");
+          if (openA) {
+            // Phone: xumm:// + _blank to hand off to the app without killing the game tab.
+            // Desktop: same-tab https (xumm:// is blank without a handler).
+            openA.href = isPhone ? deepApp : deepHttps;
+            if (isPhone) openA.target = "_blank";
+            else openA.removeAttribute("target");
+            openA.rel = "noopener noreferrer";
+            openA.removeAttribute("onclick");
+          }
+          if (deepA) {
+            deepA.href = deepHttps;
+            deepA.target = "_blank";
+            deepA.rel = "noopener noreferrer";
+            deepA.removeAttribute("onclick");
+          }
+          const urlEl = document.getElementById("xaman-url");
+          if (urlEl) urlEl.textContent = deepHttps;
+          const copyBtn = document.getElementById("xaman-copy");
+          if (copyBtn) {
+            copyBtn.onclick = () => {
+              if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(deepHttps).then(() => toast("Sign URL copied")).catch(() => toast("Copy failed"));
+              } else {
+                toast(deepHttps);
+              }
+            };
+          }
+          const wrap = document.getElementById("xaman-qr-wrap");
+          if (wrap) {
+            const proxyQr = DEN_SERVER + "/xaman/signin/" + encodeURIComponent(data.uuid) + "/qr";
+            const fallback = "https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=" + encodeURIComponent(deepHttps);
+            wrap.innerHTML = `<img alt="Xaman QR" src="${proxyQr}" referrerpolicy="no-referrer" style="max-width:220px;height:auto;background:#fff;padding:8px;border-radius:8px" />`;
+            const img = wrap.querySelector("img");
+            if (img) {
+              img.onerror = () => {
+                img.onerror = null;
+                img.src = fallback;
+              };
+            }
+          }
+          document.getElementById("xaman-wait").textContent = "Waiting for Testnet SignIn in Xaman…";
+
+          let ticks = 0;
+          pollTimer = setInterval(async () => {
+            ticks += 1;
+            if (ticks > 90) {
+              stopPoll();
+              toast("Xaman sign-in cancelled");
+              document.getElementById("xaman-wait").textContent = "Timed out.";
+              return;
+            }
+            try {
+              const pr = await fetch(DEN_SERVER + "/xaman/signin/" + encodeURIComponent(data.uuid));
+              const body = await pr.json().catch(() => ({}));
+              if (body.pending) return;
+              if (body.ok && body.address) {
+                stopPoll();
+                state.wallet = {
+                  id: "xaman",
+                  name: "Xaman",
+                  address: body.address,
+                  network: "testnet",
+                  connectedAt: Date.now(),
+                };
+                save();
+                closeModal();
+                renderWallets();
+                // Force ledger balance on every link / re-link (disconnect → reconnect too).
+                scheduleBalanceRefresh();
+                maybeWhitelistAirdrop("signin");
+                refreshTestnetWalletBalance(true).then((bal) => {
+                  if (bal && bal.unfunded) toast("Xaman linked (Testnet). Wallet unfunded — 0 XRP.");
+                  else if (bal) toast("Xaman linked · " + Number(bal.xrp).toFixed(3) + " XRP Testnet. Mainnet send is off.");
+                  else toast("Xaman linked (Testnet). Mainnet send is off.");
+                  paintWalletBalance();
+                });
+                return;
+              }
+              if (body.ok === false && body.reason && body.reason !== "waiting") {
+                stopPoll();
+                toast(body.reason);
+                document.getElementById("xaman-wait").textContent = body.reason;
+              }
+            } catch (_) {
+              /* keep polling briefly through blips */
+            }
+          }, 2000);
+        } catch (_) {
+          toast("Could not reach den server for Xaman SignIn.");
+          document.getElementById("xaman-wait").textContent = "Network error talking to den server.";
+        }
+      })();
+      return;
+    }
+    if (w.id === "ledger") {
+      box.innerHTML = `
+        <h3>Ledger</h3>
+        <p>Unlock the device, open the XRP app, then confirm. Live Ledger uses WebHID. This build stores a session address only — it will not sign or send XRP.</p>
+        <button class="btn primary" id="wc-ok">Device confirmed</button>
+        <button class="btn ghost" id="wc-no">Cancel</button>`;
+    } else {
+      const uri = "wc:apex-xrp@" + Math.random().toString(16).slice(2, 10) + "@2?relay=wss://relay.walletconnect.com";
+      box.innerHTML = `
+        <h3>${w.name}</h3>
+        <p>Approve the XRPL session in ${w.name}. Live WalletConnect needs a Cloud project ID plus an XRPL signer. This prototype keeps the session in the browser and does not broadcast.</p>
+        <p class="tiny addr">${uri}</p>
+        <button class="btn primary" id="wc-ok">I approved in ${w.name}</button>
+        <button class="btn ghost" id="wc-no">Cancel</button>`;
+    }
+    document.getElementById("wc-no").onclick = () => overlay.classList.add("hidden");
+    document.getElementById("wc-ok").onclick = () => {
+      state.wallet = {
+        id: w.id,
+        name: w.name,
+        address: mockClassicAddress(w.id + state.playerName),
+        connectedAt: Date.now(),
+      };
+      save();
+      overlay.classList.add("hidden");
+      renderWallets();
+      toast(w.name + " linked (session). Mainnet send still off.");
+    };
+  }
+
+  document.getElementById("wallet-disconnect").onclick = () => {
+    state.wallet = null;
+    state.balanceXrp = 0;
+    clearBalanceRetries();
+    _balFetchAt = 0;
+    _balAddr = null;
+    _balGen++;
+    save();
+    renderWallets();
+    renderMeta();
+    document.getElementById("net-out").textContent = state.network;
+    toast("Wallet disconnected");
+  };
+
+  const emojiBar = document.getElementById("emoji-bar");
+  if (emojiBar) {
+    const pack = ["🐍", "👑", "🔥", "💀", "💰", "🍀", "⚡", "🎯", ":xrp:"];
+    emojiBar.innerHTML = pack.map((e) =>
+      e === ":xrp:"
+        ? `<button type="button" data-e=":xrp:" title="XRP"><img src="logo.png" alt="XRP"></button>`
+        : `<button type="button" data-e="${e}">${e}</button>`
+    ).join("");
+    emojiBar.onclick = (ev) => {
+      const b = ev.target.closest("button");
+      if (!b) return;
+      const inp = document.getElementById("chat-in");
+      if (!inp) return;
+      inp.value = (inp.value + " " + b.getAttribute("data-e")).trim();
+      inp.focus();
+    };
+  }
+  const chatForm = document.getElementById("chat-form");
+  if (chatForm) {
+    chatForm.onsubmit = (e) => {
+      e.preventDefault();
+      const inp = document.getElementById("chat-in");
+      const text = (inp.value || "").trim();
+      inp.value = "";
+      if (!text) return;
+      if (handleTipCommand(text)) return;
+      pushChat(state.playerName, text, false);
+    };
+  }
+  if (!state.chat.length) {
+    state.chat = [
+      { who: "den", text: "Welcome to the Apex.XRP den.", sys: true },
+      { who: "NileFang", text: "Jungle den is open. Watch the trees.", sys: false },
+      { who: "TipBot", text: "I am online. /tip Username 0.5 sends XRP.", sys: false, tip: true },
+    ];
+  }
+  setInterval(() => {
+    if (state.mode !== "lobby") return;
+    if (Math.random() > 0.35) return;
+    pushChat(BOT_NAMES[Math.floor(Math.random() * BOT_NAMES.length)], CHAT_BOTS[Math.floor(Math.random() * CHAT_BOTS.length)], false);
+  }, 18000);
+
+  if (usernameTaken(state.playerName, false)) {
+    state.playerName = uniqueName(state.playerName);
+    save();
+  }
+
+  resize();
+  renderTiers();
+  renderSkins();
+  renderMeta();
+  renderBoard();
+  renderSheds();
+  renderRank();
+  renderChat();
+  renderWallets();
+  try {
+    lobbyArt.onload = () => { try { if (state.mode === "lobby") render(); } catch (_) {} };
+    lobbyArt.src = "lobby-bg.jpg";
+  } catch (_) {}
+  fetch("https://apex-xrp-server-production.up.railway.app/")
+    .then((r) => r.text())
+        .then(() => {})
+    .catch(() => {});
+    fetch("https://apex-xrp-server-production.up.railway.app/hello?name=" + encodeURIComponent(state.playerName))
+    .then((r) => r.json())
+    .then((j) => {
+      const el = document.getElementById("wallet-status");
+      if (el && j && j.ok) el.textContent = "Den server linked · checked in as " + state.playerName;
+      fetch("https://apex-xrp-server-production.up.railway.app/who")
+        .then((r) => r.json())
+        .then((w) => {
+          if (w && w.who) {
+            pushChat("den", "Online: " + w.who.join(", "), true);
+            renderChat();
+          }
+        })
+        .catch(() => {});
+    })
+    try {
+    const sock = new WebSocket("wss://apex-xrp-server-production.up.railway.app");
+    window.apexSock = sock;
+    sock.onopen = () => {
+        sock.send(JSON.stringify({ t: "name", name: state.playerName, room: window.apexRoom || "jungle" }));
+    };
+    sock.onmessage = (ev) => {
+      try {
+        const m = JSON.parse(ev.data);
+        if (m && m.t === "hi") {
+          const el = document.getElementById("wallet-status");
+          if (el) el.textContent = "Den server linked · socket live";
+        }
+        if (m && m.t === "dead" && m.name) {
+          if (window.apexPeers) delete window.apexPeers[m.name];
+          if (m.by && m.by === state.playerName) toast("Fanged " + m.name);
+          else toast(m.name + " dropped");
+        }
+        if (m && m.t === "shed" && state.world && Array.isArray(m.drops)) {
+          m.drops.forEach((d) => {
+            state.world.dropped.push({
+              x: Number(d.x) || 0,
+              y: Number(d.y) || 0,
+              r: 5,
+              c: "#e7c56a",
+              value: Number(d.value) || 0,
+              fromPlayer: true,
+            });
+          });
+          toast(m.name + " shed gold");
+        }
+        if (m && m.t === "prey" && state.world) {
+          state.world.bunnyGone = Number(m.hop) || 0;
+          toast((m.name || "Hunter") + " ate the rabbit");
+        }
+        if (m && m.t === "chal" && nameKey(m.to) === nameKey(state.playerName)) {
+          showChalBanner(m.from || "Hunter", Number(m.amt) || 1);
+          toast("Challenged by " + (m.from || "Hunter"));
+        }
+        if (m && m.t === "chalok" && nameKey(m.to) === nameKey(state.playerName)) {
+          window.apexRoom = "duel-" + [state.playerName, m.from].sort().join("-");
+          if (window.apexSock && window.apexSock.readyState === 1) {
+            window.apexSock.send(JSON.stringify({ t: "name", name: state.playerName, room: window.apexRoom }));
+          }
+          startMatch({ duel: { name: m.from, amt: Number(m.amt) || 1 } });
+        }
+        if (m && m.t === "pos" && m.name && m.name !== state.playerName) {
+          window.apexPeers = window.apexPeers || {};
+          const trail = Array.isArray(m.pts) && m.pts.length ? m.pts : [{ x: m.x, y: m.y }];
+          const prev = window.apexPeers[m.name] || {};
+          if (prev.seq && m.seq && m.seq <= prev.seq) return;
+          window.apexPeers[m.name] = { x: m.x, y: m.y, at: Date.now(), seq: m.seq || 0, trail: trail, skin: m.skin || null };
+        }
+        if (m && m.t === "peers" && m.who) {
+          pushChat("den", "Sockets: " + m.who.join(", "), true);
+          renderChat();
+        }
+      } catch (_) {}
+    };
+    setInterval(() => {
+      if (!window.apexSock || window.apexSock.readyState !== 1) return;
+      if (state.mode !== "play" || !state.world || !state.world.snakes[0]) return;
+      const p = state.world.snakes[0].pts[0];
+      if (!p) return;
+      const you = state.world.snakes[0];
+      const pts = [];
+      const body = you.pts;
+      const headN = Math.min(8, body.length);
+      for (let i = 0; i < headN; i++) {
+        const q = body[i];
+        pts.push({ x: Math.round(q.x), y: Math.round(q.y) });
+      }
+      const tail = body.length - headN;
+      const extra = Math.min(32, tail);
+      for (let i = 1; i <= extra; i++) {
+        const q = body[headN + Math.floor((i / extra) * (tail - 1))] || body[body.length - 1];
+        pts.push({ x: Math.round(q.x), y: Math.round(q.y) });
+      }
+        window.apexSock.send(JSON.stringify({
+        t: "pos",
+        name: state.playerName,
+        x: Math.round(p.x),
+        y: Math.round(p.y),
+        seq: (window.apexSeq = (window.apexSeq || 0) + 1),
+        pts: pts,
+        skin: {
+          a: state.skin.a,
+          b: state.skin.b,
+          p: state.skin.pattern,
+          sp: state.skin.species,
+          h: state.skin.horn,
+          t: state.skin.tail,
+          e: state.skin.eyes,
+        },
+      }));
+    }, 16);
+  } catch (_) {}
+  
+  refreshPrice();
+  refreshNews();
+  setInterval(refreshNews, 180000);
+  setInterval(refreshPrice, 12000);
+  requestAnimationFrame(loop);
+  function resetPageZoom() {
+    const meta = document.querySelector('meta[name="viewport"]');
+    if (!meta) return;
+    meta.setAttribute("content", "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover");
+    window.scrollTo(0, 0);
+    setTimeout(() => {
+      meta.setAttribute("content", "width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover");
+    }, 80);
+  }
+  resetPageZoom();
+  function runBiteIntro() {
+    resetPageZoom();
+    const wrap = document.getElementById("intro");
+    const vid = document.getElementById("intro-vid");
+    const app = document.getElementById("app");
+    if (!wrap || !vid || TRAILER) {
+      if (wrap) wrap.remove();
+      if (app) app.classList.remove("waiting-intro");
+      return;
+    }
+    let done = false;
+    function finish() {
+      if (done) return;
+      done = true;
+      try { vid.pause(); } catch (_) {}
+      if (app) app.classList.remove("waiting-intro");
+      wrap.classList.add("gone");
+      setTimeout(() => wrap.remove(), 600);
+    }
+    vid.muted = true;
+    vid.playsInline = true;
+    vid.onended = finish;
+    vid.onerror = () => {
+      wrap.style.background = '#030806 url("lobby-bg.jpg") center / cover no-repeat';
+      setTimeout(finish, 3500);
+    };
+    const skip = document.getElementById("intro-skip");
+    if (skip) {
+      skip.onclick = finish;
+      skip.addEventListener("touchend", (e) => { e.preventDefault(); e.stopPropagation(); finish(); }, { passive: false });
+    }
+    wrap.addEventListener("click", finish);
+    wrap.addEventListener("touchend", (e) => { e.preventDefault(); finish(); }, { passive: false });
+    const play = vid.play();
+    if (play && play.catch) play.catch(() => {});
+    setTimeout(finish, 9000);
+  }
+
+  runBiteIntro();
+
+  recordSiteVisit();
+})();
