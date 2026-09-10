@@ -208,11 +208,12 @@ label.row, label.tiny { pointer-events: auto; z-index: 7; position: relative; }
 }
 @keyframes rise { from { transform: translateY(70px); opacity: 0; } to { transform: translateY(-28px); opacity: 1; } }
 
-/* Fail-open: do NOT hide .app — a stuck intro used to freeze the whole lobby.
-   Intro overlay already covers the screen (z-index 40). */
-.app.waiting-intro { visibility: visible; }
-.intro { display: none !important; }
-
+.app.waiting-intro { visibility: hidden; }
+.intro {
+  position: fixed; inset: 0; z-index: 40;
+  background: #030806;
+  display: grid; place-items: center;
+}
 .intro.gone {
   display: none !important;
   opacity: 0; pointer-events: none;

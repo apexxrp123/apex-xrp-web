@@ -1,1 +1,1 @@
-/* gate entry - lobby is app.html */
+/* unused after rollback */
