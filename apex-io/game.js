@@ -100,18 +100,6 @@
   const canvas = document.getElementById("arena");
   const ctx = canvas.getContext("2d");
   const lobbyArt = new Image();
-  // Do NOT set src or onload until after `state` exists (TDZ crash wiped wallets/skins).
-  function loadLobbyArt() {
-    try {
-      const wrap = document.querySelector(".arena-wrap");
-      if (wrap) wrap.classList.add("art-ready");
-      lobbyArt.onload = () => { try { if (state.mode === "lobby") render(); } catch (_) {} };
-      if (!lobbyArt.src || String(lobbyArt.src).indexOf("lobby-bg") < 0) {
-        lobbyArt.src = "lobby-bg-lite.jpg";
-      }
-    } catch (_) {}
-  }
-
   const toastEl = document.getElementById("toast");
   const overlay = document.getElementById("overlay");
 
@@ -1744,11 +1732,14 @@
     const dt = Math.min(0.033, (t - state.last) / 1000 || 0.016);
     state.last = t;
     if (document.hidden) {
-      if (state.mode === "play" || state.mode === "killcam") requestAnimationFrame(loop);
+      requestAnimationFrame(loop);
       return;
     }
-    if (state.mode === "play") { update(dt); render(); requestAnimationFrame(loop); return; }
-    if (state.mode === "killcam") { stepKillCam(); render(); requestAnimationFrame(loop); return; }
+    if (state.mode === "play") update(dt);
+    if (state.mode === "killcam") stepKillCam();
+    if (state.mode === "lobby") paintPreview(t);
+    render();
+    requestAnimationFrame(loop);
   }
 
   function grantMatchExp(cashed, w) {
@@ -1901,7 +1892,7 @@
     return true;
   }
   function formatChatText(text) {
-    return escapeHtml(text).replace(/:xrp:/g, '<img class="chat-xrp" src="logo-lite.jpg" alt="XRP">');
+    return escapeHtml(text).replace(/:xrp:/g, '<img class="chat-xrp" src="logo.png" alt="XRP">');
   }
   function renderChat() {
     const el = document.getElementById("chat-log");
@@ -2391,7 +2382,10 @@
     canvas.width = wrap.clientWidth || window.innerWidth;
     canvas.height = wrap.clientHeight || (vv ? vv.height : window.innerHeight);
     const app = document.getElementById("app");
-    if (app) app.style.transform = "";
+    if (app && window.innerWidth <= 980 && state.mode !== "play") {
+      const s = Math.min(window.innerWidth / 1100, window.innerHeight / 720);
+      app.style.transform = "scale(" + s + ")";
+    } else if (app) app.style.transform = "";
   }
   window.addEventListener("resize", resize);
   if (window.visualViewport) visualViewport.addEventListener("resize", resize);
@@ -2560,19 +2554,8 @@
         : `<tr><td colspan="3">No sheds yet.</td></tr>`;
     }
   }
-  
-  function ensureCoilVid() {
-    const vid = document.getElementById("coil-vid");
-    if (!vid) return null;
-    if (!vid.getAttribute("src") && !vid.currentSrc) {
-      vid.setAttribute("src", "coil-draw.mp4");
-      try { vid.load(); } catch (_) {}
-    }
-    return vid;
-  }
-
   function playCoilBite() {
-    const vid = ensureCoilVid();
+    const vid = document.getElementById("coil-vid");
     const snake = document.getElementById("coil-snake");
     const num = document.getElementById("coil-num");
     const res = document.getElementById("coil-result");
@@ -2622,7 +2605,7 @@
       return;
     }
     fluteSfx();
-    const vid = ensureCoilVid();
+    const vid = document.getElementById("coil-vid");
     const snake = document.getElementById("coil-snake");
     const num = document.getElementById("coil-num");
     const res = document.getElementById("coil-result");
@@ -3069,6 +3052,10 @@
     syncNetworkUi();
     renderMeta();
     renderWallets();
+  try {
+    lobbyArt.onload = () => { try { if (state.mode === "lobby") render(); } catch (_) {} };
+    lobbyArt.src = "lobby-bg.jpg";
+  } catch (_) {}
     toast(state.network === "testnet" ? "Network: XRPL Testnet" : "Network: simulated");
   };
   syncNetworkUi();
@@ -3339,7 +3326,7 @@
     const pack = ["🐍", "👑", "🔥", "💀", "💰", "🍀", "⚡", "🎯", ":xrp:"];
     emojiBar.innerHTML = pack.map((e) =>
       e === ":xrp:"
-        ? `<button type="button" data-e=":xrp:" title="XRP"><img src="logo-lite.jpg" alt="XRP"></button>`
+        ? `<button type="button" data-e=":xrp:" title="XRP"><img src="logo.png" alt="XRP"></button>`
         : `<button type="button" data-e="${e}">${e}</button>`
     ).join("");
     emojiBar.onclick = (ev) => {
@@ -3511,23 +3498,7 @@
   refreshNews();
   setInterval(refreshNews, 180000);
   setInterval(refreshPrice, 12000);
-  try { resize(); if (state.mode === "lobby") render(); } catch (_) {}
-  try { renderWallets(); renderSkins(); paintPreview(); loadLobbyArt(); } catch (_) {}
-  // Light skin preview only (not full lobby rAF)
-  setInterval(function () {
-    try {
-      if (state.mode === "lobby" && !document.hidden) paintPreview(performance.now());
-    } catch (_) {}
-  }, 200);
-  function startApexLoop() {
-    if (window.__apexLoop) return;
-    window.__apexLoop = true;
-    requestAnimationFrame(loop);
-  }
-  setInterval(function () {
-    if ((state.mode === "play" || state.mode === "killcam") && !window.__apexLoop) startApexLoop();
-    if (state.mode === "lobby") window.__apexLoop = false;
-  }, 500);
+  requestAnimationFrame(loop);
   function resetPageZoom() {
     const meta = document.querySelector('meta[name="viewport"]');
     if (!meta) return;
@@ -3539,11 +3510,71 @@
   }
   resetPageZoom();
   function runBiteIntro() {
+    resetPageZoom();
     const wrap = document.getElementById("intro");
+    const vid = document.getElementById("intro-vid");
     const app = document.getElementById("app");
-    if (app) app.classList.remove("waiting-intro");
-    if (wrap) { try { wrap.remove(); } catch (_) {} }
-    try { if (typeof recordSiteVisit === "function") recordSiteVisit(); } catch (_) {}
+    const afterIntro = () => {
+      try { if (typeof recordSiteVisit === "function") recordSiteVisit(); } catch (_) {}
+    };
+    if (!wrap || !vid || TRAILER) {
+      if (wrap) wrap.remove();
+      if (app) app.classList.remove("waiting-intro");
+      afterIntro();
+      return;
+    }
+    let done = false;
+    function finish() {
+      if (done) return;
+      done = true;
+      try { vid.pause(); } catch (_) {}
+      if (app) app.classList.remove("waiting-intro");
+      try {
+        wrap.classList.add("gone");
+        setTimeout(() => { try { wrap.remove(); } catch (_) {} }, 400);
+      } catch (_) {
+        try { wrap.remove(); } catch (_) {}
+      }
+      afterIntro();
+    }
+    try {
+      vid.muted = true;
+      vid.defaultMuted = true;
+      vid.playsInline = true;
+      vid.setAttribute("playsinline", "");
+      vid.setAttribute("muted", "");
+      vid.onended = finish;
+      vid.onerror = () => {
+        try { wrap.style.background = '#030806 url("lobby-bg.jpg") center / cover no-repeat'; } catch (_) {}
+        setTimeout(finish, 1200);
+      };
+      // If the mp4 stalls on refresh, don't leave players on a black overlay.
+      vid.onstalled = () => setTimeout(finish, 2500);
+      vid.onwaiting = () => { /* keep hard timeout below */ };
+      const skip = document.getElementById("intro-skip");
+      if (skip) {
+        skip.onclick = (e) => { try { e.preventDefault(); e.stopPropagation(); } catch (_) {} finish(); };
+        skip.addEventListener("touchend", (e) => { e.preventDefault(); e.stopPropagation(); finish(); }, { passive: false });
+      }
+      wrap.addEventListener("click", (e) => {
+        if (e.target && e.target.id === "intro-skip") return;
+        finish();
+      });
+      wrap.addEventListener("touchend", (e) => {
+        if (e.target && e.target.id === "intro-skip") return;
+        e.preventDefault();
+        finish();
+      }, { passive: false });
+      const play = vid.play();
+      if (play && play.catch) {
+        play.catch(() => { setTimeout(finish, 800); });
+      }
+      // Hard caps: never block lobby longer than a few seconds on refresh.
+      setTimeout(finish, 5000);
+      setTimeout(finish, 8000);
+    } catch (_) {
+      finish();
+    }
   }
 
   runBiteIntro();

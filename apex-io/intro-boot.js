@@ -1,1 +1,1 @@
-/* gate entry */
+/* gate entry - lobby is app.html */

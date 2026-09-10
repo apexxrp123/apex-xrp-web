@@ -16,9 +16,16 @@
 html, body { height: 100%; height: 100dvh; }
 body {
   font-family: "Trebuchet MS", "Segoe UI", sans-serif;
-  background: #030806;
+  background:
+    linear-gradient(180deg, rgba(4,10,6,0.42) 0%, rgba(4,10,6,0.28) 40%, rgba(4,8,6,0.55) 100%),
+    url("lobby-bg.jpg") center / cover no-repeat fixed;
   color: var(--text);
-  overflow: hidden;
+  overflow: auto;
+  touch-action: manipulation;
+  -ms-touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 .side, input, select, textarea, .btn { touch-action: manipulation; -webkit-user-select: text; user-select: text; }
 input, select, textarea {
@@ -50,7 +57,7 @@ label.row, label.tiny { pointer-events: auto; z-index: 7; position: relative; }
 .side {
   background:
     linear-gradient(180deg, rgba(8, 18, 10, 0.62) 0%, rgba(6, 12, 8, 0.68) 100%);
-  backdrop-filter: none;
+  backdrop-filter: blur(8px);
   border-right: 1px solid var(--line);
   padding: 18px;
   overflow: auto;
@@ -127,10 +134,9 @@ label.row, label.tiny { pointer-events: auto; z-index: 7; position: relative; }
 
 .arena-wrap {
   position: relative;
-  background: #030806;
-}
-.arena-wrap.art-ready {
-  background: linear-gradient(180deg, rgba(4,10,6,0.2), rgba(4,10,6,0.35)), url("lobby-bg-lite.jpg") center / cover no-repeat;
+  background:
+    linear-gradient(180deg, rgba(4,10,6,0.2), rgba(4,10,6,0.35)),
+    url("lobby-bg.jpg") center / cover no-repeat;
 }
 #arena { width: 100%; height: 100%; display: block; background: #000; pointer-events: none; }
 .app.playing #arena { pointer-events: auto; }
@@ -176,8 +182,7 @@ label.row, label.tiny { pointer-events: auto; z-index: 7; position: relative; }
 
 .overlay {
   position: fixed; inset: 0; z-index: 35; display: grid; place-items: center;
-  background: rgba(4,8,6,0.72);
-  backdrop-filter: none;
+  background: rgba(4,8,6,0.72); backdrop-filter: blur(4px);
 }
 .overlay.hidden { display: none; }
 #coil-page { position: fixed; inset: 0; z-index: 30; }
@@ -208,12 +213,15 @@ label.row, label.tiny { pointer-events: auto; z-index: 7; position: relative; }
 .app.waiting-intro { visibility: visible; }
 .intro { display: none !important; }
 
+.intro.gone {
+  display: none !important;
+  opacity: 0; pointer-events: none;
+}
 .intro video {
   width: 100%; height: 100%;
   object-fit: cover;
   display: block;
   background: #030806;
-  pointer-events: none;
 }
 .intro-copy {
   position: absolute; left: 50%; bottom: 7%;
@@ -225,10 +233,9 @@ label.row, label.tiny { pointer-events: auto; z-index: 7; position: relative; }
 .intro-copy strong { display: block; font-size: 36px; color: #e7c56a; }
 .intro-copy span { color: #d7efe4; font-size: 13px; letter-spacing: 0.2em; text-transform: uppercase; }
 .intro-skip {
-  position: absolute; top: 16px; right: 16px; z-index: 100;
-  background: rgba(8,18,12,0.85); color: #e8f0ea; border: 1px solid #e7c56a88;
-  border-radius: 999px; padding: 12px 18px; cursor: pointer; font: inherit;
-  pointer-events: auto; min-height: 44px; min-width: 72px;
+  position: absolute; top: 16px; right: 16px; z-index: 50;
+  background: transparent; color: #c9dcc8; border: 1px solid #355;
+  border-radius: 999px; padding: 8px 14px; cursor: pointer; font: inherit;
 }
 .sheet-x {
   float: right;
@@ -263,11 +270,10 @@ th { color: var(--muted); font-weight: 600; }
   body { overflow: auto; touch-action: pan-x pan-y pinch-zoom; }
   .mobile-bar { display: none !important; }
   .app {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto 1fr;
-    width: 100%;
-    height: 100dvh;
-    transform: none !important;
+    grid-template-columns: 280px 1fr 340px;
+    grid-template-rows: 1fr;
+    width: 1100px;
+    height: 720px;
     transform-origin: top left;
   }
   .side {
@@ -513,11 +519,3 @@ th { color: var(--muted); font-weight: 600; }
   }
   .app.playing.chat-open .chat-toggle { background: #e7c56a; color: #2a2108; }
 }
-
-.side, .overlay, .side.right {
-  backdrop-filter: none; -webkit-
-  backdrop-filter: none; }
-@media (max-width: 900px) { .app { transform: none !important; width: 100% !important; height: 100dvh !important; } }
-
-.intro { display: none !important; }
-.side, .overlay { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
