@@ -3546,6 +3546,12 @@
   }
 
   recordSiteVisit();
-  runBiteIntro();
+  try {
+    const wrap = document.getElementById("intro");
+    const app = document.getElementById("app");
+    if (wrap) wrap.remove();
+    if (app) app.classList.remove("waiting-intro");
+  } catch (_) {}
+  try { if (typeof recordSiteVisit === "function") recordSiteVisit(); } catch (_) {}
 
 })();
