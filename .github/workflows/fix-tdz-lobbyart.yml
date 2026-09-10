@@ -1,0 +1,68 @@
+name: fix-tdz-lobbyart
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/fix-tdz-lobbyart.yml"
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Defer lobbyArt until after state boot
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+          p = Path("apex-io/game.js")
+          js = p.read_text()
+          old = (
+              "const lobbyArt = new Image();\n"
+              "  lobbyArt.onload = () => { if (state.mode === \"lobby\") render(); };\n"
+              "  lobbyArt.src = \"lobby-bg.jpg\";"
+          )
+          new = "const lobbyArt = new Image();"
+          if old not in js:
+              if "lobbyArt.src = \"lobby-bg.jpg\"" in js and js.find("lobbyArt.src") < js.find("const state ="):
+                  raise SystemExit("unexpected lobbyArt shape")
+              if "  renderWallets();\n  try {\n    lobbyArt" in js:
+                  print("already deferred")
+              else:
+                  raise SystemExit("lobbyArt early block missing")
+          else:
+              js = js.replace(old, new, 1)
+              marker = "  renderWallets();\n  fetch("
+              if marker not in js:
+                  raise SystemExit("boot marker missing")
+              insert = (
+                  "  renderWallets();\n"
+                  "  try {\n"
+                  "    lobbyArt.onload = () => { try { if (state.mode === \"lobby\") render(); } catch (_) {} };\n"
+                  "    lobbyArt.src = \"lobby-bg.jpg\";\n"
+                  "  } catch (_) {}\n"
+                  "  fetch("
+              )
+              if "  renderWallets();\n  try {\n    lobbyArt" not in js:
+                  js = js.replace(marker, insert, 1)
+          if js.find("lobbyArt.src") < js.find("const state ="):
+              raise SystemExit("lobbyArt.src still before state")
+          if "renderMeta();\n    renderWallets();\n  try" in js:
+              raise SystemExit("wrong onchange attach")
+          for s in ["hasTestnetXaman", "cashOut", "OWNER_TREASURY", "renderWallets", "paintPreview", "renderChat", "renderRank"]:
+              if s not in js:
+                  raise SystemExit("missing " + s)
+          p.write_text(js)
+          print("ok", len(js), "src_at", js.find("lobbyArt.src"), "state_at", js.find("const state ="))
+          PY
+          grep -q hasTestnetXaman apex-io/game.js
+          grep -q cashOut apex-io/game.js
+          grep -q 'wallet-grid' apex-io/index.html
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apex-io/game.js
+          git diff --cached --quiet && echo nochange && exit 0
+          git commit -m "Fix lobbyArt TDZ: load bg after state so wallets/chat/ranks boot"
+          git push
