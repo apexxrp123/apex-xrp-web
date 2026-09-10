@@ -1,0 +1,39 @@
+name: rollback-pre-polish
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/rollback-pre-polish.yml"
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore pre-AwSnap lobby (b18e33c)
+        run: |
+          set -euo pipefail
+          GOOD=b18e33c4cbefd9d3147f79a7a6c86395b1f070b4
+          curl -fsSL -o apex-io/game.js "https://raw.githubusercontent.com/apexxrp123/apex-xrp-web/$GOOD/apex-io/game.js"
+          curl -fsSL -o apex-io/index.html "https://raw.githubusercontent.com/apexxrp123/apex-xrp-web/$GOOD/apex-io/index.html"
+          curl -fsSL -o apex-io/styles.css "https://raw.githubusercontent.com/apexxrp123/apex-xrp-web/$GOOD/apex-io/styles.css"
+          printf '%s\n' '<!DOCTYPE html><html><head><meta charset="UTF-8"/><meta http-equiv="refresh" content="0;url=index.html"/><title>Apex.XRP</title></head><body><a href="index.html">Open lobby</a></body></html>' > apex-io/app.html
+          printf '%s\n' '/* unused after rollback */' > apex-io/intro-boot.js
+          grep -q 'wallet-grid' apex-io/index.html
+          grep -q 'skin-preview' apex-io/index.html
+          grep -q 'chat-form' apex-io/index.html
+          grep -q 'src="game.js"' apex-io/index.html
+          ! grep -q 'app.html' apex-io/index.html
+          grep -q hasTestnetXaman apex-io/game.js
+          grep -q cashOut apex-io/game.js
+          grep -q OWNER_TREASURY apex-io/game.js
+          ! grep -q startApexLoop apex-io/game.js
+          test $(wc -c < apex-io/index.html) -gt 5000
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apex-io/game.js apex-io/index.html apex-io/styles.css apex-io/app.html apex-io/intro-boot.js
+          git diff --cached --quiet && echo nochange && exit 0
+          git commit -m "Rollback: restore pre-AwSnap lobby from b18e33c (wallets/skins/Testnet; no Enter gate)"
+          git push
