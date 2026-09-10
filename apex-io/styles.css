@@ -1,4 +1,5 @@
 .intro { display: none !important; }
+html,body{background:#030806!important;}
 :root {
   --bg: #071208;
   --panel: #102014dd;
@@ -58,7 +59,6 @@ label.row, label.tiny { pointer-events: auto; z-index: 7; position: relative; }
 .side {
   background:
     linear-gradient(180deg, rgba(8, 18, 10, 0.62) 0%, rgba(6, 12, 8, 0.68) 100%);
-  backdrop-filter: blur(8px);
   border-right: 1px solid var(--line);
   padding: 18px;
   overflow: auto;
@@ -183,7 +183,7 @@ label.row, label.tiny { pointer-events: auto; z-index: 7; position: relative; }
 
 .overlay {
   position: fixed; inset: 0; z-index: 35; display: grid; place-items: center;
-  background: rgba(4,8,6,0.72); backdrop-filter: blur(4px);
+  background: rgba(4,8,6,0.72);
 }
 .overlay.hidden { display: none; }
 #coil-page { position: fixed; inset: 0; z-index: 30; }
@@ -465,59 +465,3 @@ th { color: var(--muted); font-weight: 600; }
 }
 .chal-yes { background: #3dff9a; }
 .chal-no { background: #ff5d6c; color: #fff; }
-
-
-/* polish: in-den chat on narrow */
-.chat-toggle {
-  display: none;
-  position: absolute;
-  top: calc(8px + env(safe-area-inset-top));
-  right: calc(8px + env(safe-area-inset-right));
-  z-index: 14;
-  min-height: 40px;
-  padding: 8px 12px;
-  border-radius: 10px;
-  border: 1px solid #e7c56a88;
-  background: rgba(8, 18, 12, 0.85);
-  color: #e7c56a;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-}
-@media (max-width: 980px) {
-  .app.playing .chat-toggle { display: block; }
-  .app.playing.chat-open .side.right {
-    display: flex !important;
-    flex-direction: column;
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    top: auto;
-    width: 100%;
-    max-height: min(42dvh, 360px);
-    z-index: 13;
-    margin: 0;
-    padding: 8px 10px calc(10px + env(safe-area-inset-bottom));
-    background: rgba(6, 12, 8, 0.96);
-    border-top: 1px solid var(--line);
-    overflow: hidden;
-    -webkit-overflow-scrolling: touch;
-  }
-  .app.playing.chat-open .side.right .card { display: none !important; }
-  .app.playing.chat-open .side.right .card-chat {
-    display: flex !important;
-    flex-direction: column;
-    max-height: 100%;
-    margin: 0;
-    padding: 8px;
-  }
-  .app.playing.chat-open .side.right .card-chat .chat-log {
-    height: auto;
-    min-height: 120px;
-    max-height: 22dvh;
-    flex: 1;
-    font-size: 14px;
-    padding: 10px;
-  }
-  .app.playing.chat-open .chat-toggle { background: #e7c56a; color: #2a2108; }
-}

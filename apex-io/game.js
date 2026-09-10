@@ -226,11 +226,6 @@
       lastCoilWin: "",
     };
   }
-  function rankLevel(exp) {
-    const r = rankOf(exp);
-    const idx = RANKS.findIndex((x) => x.name === r.cur.name);
-    return (idx < 0 ? 0 : idx) + 1; // 1 = Hatchling
-  }
   function rankOf(exp) {
     let cur = RANKS[0];
     let next = RANKS[1] || RANKS[0];
@@ -664,6 +659,8 @@
   function syncNetworkUi() {
     const netSel = document.getElementById("network");
     if (netSel && document.activeElement !== netSel) netSel.value = state.network;
+    const add = document.getElementById("add-funds");
+    if (add) add.style.display = effectiveNetwork() === "testnet" ? "none" : "";
   }
   function gateTestnetHunt() {
     if (effectiveNetwork() !== "testnet") return true;
@@ -805,13 +802,6 @@
               const body = await pr.json().catch(() => ({}));
               if (body.pending) return;
               if (body.ok && body.txHash) {
-                stopPoll();
-                // Dedupe: overlapping polls can both see tesSUCCESS — only announce once.
-                if (state.lastLockTx === body.txHash) {
-                  closeModal();
-                  finish({ ok: true, txHash: body.txHash });
-                  return;
-                }
                 state.lastLockTx = body.txHash;
                 try { save(); } catch (_) {}
                 closeModal();
@@ -1756,7 +1746,6 @@
     const after = rankOf(state.exp);
     upsertBoardExp();
     pushChat("system", `+${gained} EXP` + (after.cur.name !== before ? ` — promoted to ${after.cur.name}` : ""), true);
-    maybeWhitelistAirdrop(after.cur.name !== before ? "promote" : "exp");
     return gained;
   }
   function upsertBoardExp() {
@@ -1769,40 +1758,6 @@
     row.server = state.tier.name;
     state.board.sort((a, b) => (b.exp || 0) - (a.exp || 0) || (b.xrp || 0) - (a.xrp || 0));
   }
-
-  function maybeWhitelistAirdrop(reason) {
-    try {
-      if (!hasTestnetXaman()) return;
-      const level = rankLevel(state.exp);
-      if (level < 3) return;
-      const addr = state.wallet.address;
-      const key = "apex-io-airdrop-wl";
-      let list = safeParse(localStorage.getItem(key), null) || [];
-      if (!Array.isArray(list)) list = [];
-      if (list.some((e) => e && e.address === addr)) return;
-      const entry = {
-        address: addr,
-        name: state.playerName,
-        level: level,
-        rank: rankOf(state.exp).cur.name,
-        exp: state.exp,
-        at: Date.now(),
-        reason: reason || "level3",
-      };
-      list.push(entry);
-      localStorage.setItem(key, JSON.stringify(list.slice(-200)));
-      state.meta.airdropWhitelisted = true;
-      save();
-      pushChat("den", "APEX airdrop whitelist: " + entry.name + " · " + addr.slice(0, 8) + "… (level " + level + ")", true);
-      toast("Level " + level + " — you're on the APEX airdrop whitelist");
-      fetch(DEN_SERVER + "/airdrop/whitelist", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(entry),
-      }).catch(() => {});
-    } catch (_) {}
-  }
-
   function pushChat(who, text, sys, tip) {
     const line = {
       who: cleanName(who),
@@ -2180,20 +2135,6 @@
     const n = m % 3;
     el.textContent = "Queue · Jungle " + j + " · River Coil " + r + " · Night Apex " + n;
   }
-
-  async function recordSiteVisit() {
-    const el = document.getElementById("visit-count");
-    try {
-      const res = await fetch(DEN_SERVER + "/stats/visit", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
-      const body = await res.json().catch(() => ({}));
-      if (el && body && body.ok && typeof body.total === "number") {
-        el.textContent = "Visitors: " + body.total.toLocaleString();
-      }
-    } catch (_) {
-      if (el) el.textContent = "Visitors: —";
-    }
-  }
-
   function renderMeta() {
     const balEl = document.getElementById("bal");
     const balUsd = document.getElementById("bal-usd");
@@ -2970,6 +2911,16 @@
       try { el.focus(); } catch (_) {}
     });
   });
+  tap(document.getElementById("add-funds"), () => {
+    if (effectiveNetwork() === "testnet") {
+      toast("Test chips are off on Testnet. Link Xaman and use real Testnet XRP next.");
+      return;
+    }
+    state.balanceXrp = +(state.balanceXrp + 25).toFixed(3);
+    save();
+    renderMeta();
+    toast("Simulated +25 XRP (test chips only)");
+  });
   const rankView = document.getElementById("rank-view");
   const rankClose = document.getElementById("rank-close");
   const rankModal = document.getElementById("rank-modal");
@@ -3232,7 +3183,6 @@
                 renderWallets();
                 // Force ledger balance on every link / re-link (disconnect → reconnect too).
                 scheduleBalanceRefresh();
-                maybeWhitelistAirdrop("signin");
                 refreshTestnetWalletBalance(true).then((bal) => {
                   if (bal && bal.unfunded) toast("Xaman linked (Testnet). Wallet unfunded — 0 XRP.");
                   else if (bal) toast("Xaman linked · " + Number(bal.xrp).toFixed(3) + " XRP Testnet. Mainnet send is off.");
@@ -3286,22 +3236,6 @@
       toast(w.name + " linked (session). Mainnet send still off.");
     };
   }
-
-  const chatToggle = document.getElementById("chat-toggle");
-  if (chatToggle) {
-    chatToggle.onclick = () => {
-      document.querySelector(".app")?.classList.toggle("chat-open");
-    };
-  }
-  // Close in-den chat sheet when leaving play
-  const _setModeChat = (() => {
-    const app = document.querySelector(".app");
-    if (!app) return;
-    const mo = new MutationObserver(() => {
-      if (!app.classList.contains("playing")) app.classList.remove("chat-open");
-    });
-    mo.observe(app, { attributes: true, attributeFilter: ["class"] });
-  })();
 
   document.getElementById("wallet-disconnect").onclick = () => {
     state.wallet = null;
@@ -3547,13 +3481,6 @@
     setTimeout(finish, 9000);
   }
 
-  recordSiteVisit();
-  try {
-    const wrap = document.getElementById("intro");
-    const app = document.getElementById("app");
-    if (wrap) wrap.remove();
-    if (app) app.classList.remove("waiting-intro");
-  } catch (_) {}
-  try { if (typeof recordSiteVisit === "function") recordSiteVisit(); } catch (_) {}
+  runBiteIntro();
 
 })();

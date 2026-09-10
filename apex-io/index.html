@@ -42,6 +42,7 @@
         <div class="tiny">XRP <span id="price" class="live-px">—</span> <span id="price-age"></span> · <span id="net-out">simulated</span></div>
         <div class="row" style="margin-top:10px">
           <button class="btn" id="rename">Username</button>
+          <button class="btn gold" id="add-funds">+25 test XRP</button>
         </div>
         <p class="tiny" id="wallet-status">No wallet linked. Test chips only. Mainnet send is off.</p>
         <div class="wallet-grid" id="wallet-grid"></div>
@@ -128,7 +129,6 @@
       <canvas id="arena"></canvas>
       <div id="queue-banner" class="queue-banner">Checking dens…</div>
       <div id="killcam-tag" class="killcam-tag hidden">KILL CAM</div>
-      <button type="button" id="chat-toggle" class="chat-toggle" aria-label="Den chat">Chat</button>
       <div class="hud">
         <div class="stat"><span>Den</span><b id="hud-server">—</b></div>
         <div class="stat"><span>Buy-in</span><b id="hud-stake">—</b></div>
@@ -170,7 +170,7 @@
           <p class="tiny">Pot <b id="coil-pot">0</b> XRP · <span id="coil-pot-usd">$0</span> · <span id="coil-tickets">0</span> tickets in the pot</p>
           <p class="tiny">Your tickets: <b id="coil-yours">0</b></p>
           <div class="coil-stage" id="coil-stage">
-            <video id="coil-vid" src="coil-draw.mp4" playsinline muted></video>
+            <video id="coil-vid" playsinline muted preload="none"></video>
             <div class="coil-snake hidden" id="coil-snake">Ticket <span id="coil-num"></span></div>
           </div>
           <p id="coil-result" class="tiny"></p>
@@ -205,7 +205,7 @@
         </div>
         <p class="tiny">Each leave-den cash-out. USD follows live XRP.</p>
       </div>
-      <div class="card card-chat">
+      <div class="card">
         <h2>Den chat</h2>
         <div id="chat-log" class="chat-log"></div>
         <form id="chat-form" class="chat-form">
@@ -269,7 +269,7 @@
       <button class="btn primary rank-close-btn" type="button" style="margin-top:12px">Back to den</button>
     </div>
   </div>
-  <audio id="hiss-audio" src="hiss.mp3" preload="auto"></audio>
+  <audio id="hiss-audio" src="hiss.mp3" preload="none"></audio>
   <script src="game.js"></script>
 </body>
 </html>

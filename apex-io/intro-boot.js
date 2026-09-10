@@ -1,1 +1,1 @@
-/* unused after rollback */
+/* unused */
